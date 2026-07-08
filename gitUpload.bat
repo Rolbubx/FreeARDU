@@ -34,7 +34,7 @@ echo.
 :: CHECK GIT INSTALLATION
 ::==============================================================================
 
-echo ║ [STEP 1/5] Checking Git Installation...
+echo ║ [STEP 1/6] Checking Git Installation...
 echo ║
 
 git --version >nul 2>&1
@@ -59,7 +59,7 @@ echo ║
 :: CHECK REPOSITORY STATUS
 ::==============================================================================
 
-echo ║ [STEP 2/5] Checking Repository Status...
+echo ║ [STEP 2/6] Checking Repository Status...
 echo ║
 
 git rev-parse --is-inside-work-tree >nul 2>&1
@@ -82,7 +82,7 @@ echo ║
 :: CHECK FOR MODIFICATIONS
 ::==============================================================================
 
-echo ║ [STEP 3/5] Scanning for Changes...
+echo ║ [STEP 3/6] Scanning for Changes...
 echo ║
 
 for /f "tokens=*" %%i in ('git status --porcelain') do set "HAS_CHANGES=true"
@@ -112,13 +112,58 @@ echo ║
 :: GET CURRENT BRANCH
 ::==============================================================================
 
-echo ║ [STEP 4/5] Retrieving Branch Information...
+echo ║ [STEP 4/6] Retrieving Branch Information...
 echo ║
 
 for /f "tokens=*" %%i in ('git rev-parse --abbrev-ref HEAD') do set "CURRENT_BRANCH=%%i"
 
 echo ║ ✓ Current branch: %CURRENT_BRANCH%
 echo ║
+
+::==============================================================================
+:: BRANCH SELECTION
+::==============================================================================
+
+echo ║ Branch Selection:
+echo ║
+
+set /p BRANCH_CHOICE="║ Push to current branch [%CURRENT_BRANCH%]? [Y/N/C]: "
+
+set "TARGET_BRANCH=%CURRENT_BRANCH%"
+
+if /i "!BRANCH_CHOICE!"=="N" (
+    echo ║
+    echo ║ Enter new branch name:
+    echo ║
+    
+    set "NEW_BRANCH="
+    set /p NEW_BRANCH=║ Branch name: 
+    
+    if "!NEW_BRANCH!"=="" (
+        echo ║
+        echo ║ ✗ ERROR: Branch name cannot be empty
+        echo ║
+        echo ╚══════════════════════════════════════════════════════════════════════════╝
+        echo.
+        pause
+        exit /b 1
+    )
+    
+    set "TARGET_BRANCH=!NEW_BRANCH!"
+    echo ║
+    echo ║ ✓ Target branch set to: !TARGET_BRANCH!
+    echo ║
+) else if /i "!BRANCH_CHOICE!"=="C" (
+    echo ║
+    echo ║ ✗ Operation cancelled by user
+    echo ║
+    echo ╚══════════════════════════════════════════════════════════════════════════╝
+    echo.
+    pause
+    exit /b 1
+) else (
+    echo ║
+)
 
 ::==============================================================================
 :: GET COMMIT MESSAGE
@@ -148,11 +193,11 @@ echo ║
 :: DISPLAY SUMMARY & CONFIRMATION
 ::==============================================================================
 
-echo ║ [STEP 5/5] Review and Confirm
+echo ║ [STEP 5/6] Review and Confirm
 echo ║
 echo ║ ─────────────────────────────────────────────────────────────────────────
 echo ║
-echo ║  Target Branch    : %CURRENT_BRANCH%
+echo ║  Target Branch    : %TARGET_BRANCH%
 echo ║  Commit Message   : %COMMIT_MSG%
 echo ║
 echo ║ ─────────────────────────────────────────────────────────────────────────
@@ -218,7 +263,26 @@ echo ║
 
 :: Push changes
 echo ║ • Pushing to remote repository...
-git push 2>&1
+
+:: Check if target branch is different from current branch
+if not "!TARGET_BRANCH!"=="!CURRENT_BRANCH!" (
+    echo ║ • Creating and checking out new branch: !TARGET_BRANCH!
+    git checkout -b !TARGET_BRANCH! >nul 2>&1
+    
+    if errorlevel 1 (
+        echo ║ ✗ ERROR: Failed to create/switch to branch
+        echo ║
+        echo ╚══════════════════════════════════════════════════════════════════════════╝
+        echo.
+        pause
+        exit /b 1
+    )
+    
+    echo ║ ✓ Branch created/switched successfully
+    echo ║
+)
+
+git push -u origin !TARGET_BRANCH! 2>&1
 
 if errorlevel 1 (
     echo ║

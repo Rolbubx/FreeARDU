@@ -85,7 +85,7 @@ print_header
 # STEP 1: CHECK GIT INSTALLATION
 ################################################################################
 
-print_step "1/5" "Checking Git Installation..."
+print_step "1/6" "Checking Git Installation..."
 
 if ! command -v git &> /dev/null; then
     print_error "Git is not installed or not found in PATH"
@@ -108,7 +108,7 @@ echo -e "${BLUE}║${NC}"
 # STEP 2: CHECK REPOSITORY STATUS
 ################################################################################
 
-print_step "2/5" "Checking Repository Status..."
+print_step "2/6" "Checking Repository Status..."
 
 if ! git rev-parse --is-inside-work-tree &> /dev/null; then
     print_error "Not a Git repository"
@@ -125,7 +125,7 @@ echo -e "${BLUE}║${NC}"
 # STEP 3: CHECK FOR MODIFICATIONS
 ################################################################################
 
-print_step "3/5" "Scanning for Changes..."
+print_step "3/6" "Scanning for Changes..."
 
 # Check if there are any changes
 if [[ -z $(git status --porcelain) ]]; then
@@ -152,11 +152,49 @@ echo -e "${BLUE}║${NC}"
 # STEP 4: GET CURRENT BRANCH
 ################################################################################
 
-print_step "4/5" "Retrieving Branch Information..."
+print_step "4/6" "Retrieving Branch Information..."
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 print_success "Current branch: ${CYAN}${CURRENT_BRANCH}${NC}"
 echo -e "${BLUE}║${NC}"
+
+################################################################################
+# BRANCH SELECTION
+################################################################################
+
+echo -e "${BLUE}║${NC} Branch Selection:"
+echo -e "${BLUE}║${NC}"
+
+read -p "$(echo -e "${BLUE}║${NC} Push to current branch [${CYAN}${CURRENT_BRANCH}${NC}]? [Y/N/C]: ")" BRANCH_CHOICE
+
+TARGET_BRANCH="$CURRENT_BRANCH"
+
+if [[ "$BRANCH_CHOICE" =~ ^[Nn]$ ]]; then
+    echo -e "${BLUE}║${NC}"
+    echo -e "${BLUE}║${NC} Enter new branch name:"
+    echo -e "${BLUE}║${NC}"
+    
+    read -p "$(echo -e "${BLUE}║${NC} Branch name: ")" NEW_BRANCH
+    
+    if [[ -z "$NEW_BRANCH" ]]; then
+        echo -e "${BLUE}║${NC}"
+        print_error "Branch name cannot be empty"
+        echo ""
+        error_exit
+    fi
+    
+    TARGET_BRANCH="$NEW_BRANCH"
+    echo -e "${BLUE}║${NC}"
+    print_success "Target branch set to: ${CYAN}${TARGET_BRANCH}${NC}"
+    echo -e "${BLUE}║${NC}"
+elif [[ "$BRANCH_CHOICE" =~ ^[Cc]$ ]]; then
+    echo -e "${BLUE}║${NC}"
+    print_error "Operation cancelled by user"
+    echo ""
+    error_exit
+else
+    echo -e "${BLUE}║${NC}"
+fi
 
 ################################################################################
 # STEP 5: GET COMMIT MESSAGE
@@ -182,11 +220,11 @@ echo -e "${BLUE}║${NC}"
 # DISPLAY SUMMARY & CONFIRMATION
 ################################################################################
 
-print_step "5/5" "Review and Confirm"
+print_step "6/6" "Review and Confirm"
 echo -e "${BLUE}║${NC}"
 print_divider
 echo -e "${BLUE}║${NC}"
-echo -e "${BLUE}║${NC}  Target Branch    : ${CYAN}${CURRENT_BRANCH}${NC}"
+echo -e "${BLUE}║${NC}  Target Branch    : ${CYAN}${TARGET_BRANCH}${NC}"
 echo -e "${BLUE}║${NC}  Commit Message   : ${CYAN}${COMMIT_MSG}${NC}"
 echo -e "${BLUE}║${NC}"
 print_divider
@@ -237,7 +275,22 @@ echo -e "${BLUE}║${NC}"
 
 # Push changes
 echo -e "${BLUE}║${NC} • Pushing to remote repository..."
-if ! git push 2>&1; then
+
+# Check if target branch is different from current branch
+if [[ "$TARGET_BRANCH" != "$CURRENT_BRANCH" ]]; then
+    echo -e "${BLUE}║${NC} • Creating and checking out new branch: ${CYAN}${TARGET_BRANCH}${NC}"
+    
+    if ! git checkout -b "$TARGET_BRANCH" 2>/dev/null; then
+        print_error "Failed to create/switch to branch"
+        echo ""
+        error_exit
+    fi
+    
+    print_success "Branch created/switched successfully"
+    echo -e "${BLUE}║${NC}"
+fi
+
+if ! git push -u origin "$TARGET_BRANCH" 2>&1; then
     echo -e "${BLUE}║${NC}"
     echo -e "${BLUE}╠════════════════════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${BLUE}║${NC} ${YELLOW}⚠${NC}  ${BOLD}WARNING: Git push encountered an error!${NC}"

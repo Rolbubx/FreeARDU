@@ -1,32 +1,42 @@
 #!/bin/bash
 
 echo "[BUILD] Starting build process for FreeARDU..."
+echo ""
 
-# Simple loading bar simulation
-draw_bar() {
-    local progress=$1
-    local total=20
-    local filled=$((progress * total / 100))
-    local empty=$((total - filled))
-    
-    printf "\r["
-    printf "%${filled}s" | tr ' ' '#'
-    printf "%${empty}s" | tr ' ' ' '
-    printf "] %d%%" "$progress"
-}
-
+# Better animated loading bar
 for i in {0..100..5}; do
-    draw_bar $i
-    sleep 0.1
+    filled=$((i / 5))
+    empty=$((20 - filled))
+    bar=$(printf '%*s' $filled | tr ' ' '#')
+    spaces=$(printf '%*s' $empty | tr ' ' '-')
+    printf "\rInitializing... [%s%s] %d%%" "$bar" "$spaces" "$i"
 done
+printf "\n"
 echo ""
 
 echo "[BUILD] Running PlatformIO build..."
-cd FreeARDU
+
+# Navigate to the root directory where platformio.ini is located
+cd "$(dirname "$0")"
+
 pio run
 if [ $? -eq 0 ]; then
     echo "[SUCCESS] Build finished successfully."
+    echo ""
+    echo "[UPLOAD] Do you want to upload the firmware? [Y/N]"
+    read -p "Enter choice: " UPLOAD_CHOICE
+    
+    if [[ "$UPLOAD_CHOICE" =~ ^[Yy]$ ]]; then
+        echo "[UPLOAD] Starting firmware upload..."
+        pio upload
+        if [ $? -eq 0 ]; then
+            echo "[SUCCESS] Upload finished successfully."
+        else
+            echo "[ERROR] Upload failed."
+        fi
+    else
+        echo "[UPLOAD] Upload skipped by user."
+    fi
 else
     echo "[ERROR] Build failed."
 fi
-cd ..

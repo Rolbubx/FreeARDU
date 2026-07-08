@@ -3,10 +3,13 @@
 .fpu fpv5-d16
 .thumb
 
-.global _start
 .global reset_handler
 .global Reset_Handler
 .global vector_table
+
+/* Make reset_handler weak so it doesn't conflict with crt0.o's _start */
+.weak reset_handler
+.weak Reset_Handler
 
 .extern _estack
 .extern _sidata
@@ -55,7 +58,6 @@ vector_table:
 
 reset_handler:
 Reset_Handler:
-_start:
     cpsid i
 
     /*

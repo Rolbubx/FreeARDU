@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="ExternalStorageConfigurationManager" enabled="true" />
   <component name="MaterialThemeProjectNewConfig">
     <option name="metadata">
       <MTProjectMetadataState>
@@ -8,5 +9,15 @@
         <option name="userId" value="699f0698:19dfc9a1907:-7ffe" />
       </MTProjectMetadataState>
     </option>
+  </component>
+  <component name="PlatformIOSettings">
+    <option name="linkedExternalProjectsSettings">
+      <PlatformioProjectSettings>
+        <option name="externalProjectPath" value="$PROJECT_DIR$/FreeARDU" />
+      </PlatformioProjectSettings>
+    </option>
+  </component>
+  <component name="PlatformIOWorkspace" PROJECT_DIR="$PROJECT_DIR$/FreeARDU">
+    <contentRoot DIR="$PROJECT_DIR$" />
   </component>
 </project>

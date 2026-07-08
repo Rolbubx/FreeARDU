@@ -9,6 +9,8 @@
 #define MAX_FRAMEBUFFER_WIDTH 320
 #define MAX_FRAMEBUFFER_HEIGHT 240
 
+static FramebufferPixel pixels[MAX_FRAMEBUFFER_HEIGHT][MAX_FRAMEBUFFER_WIDTH];
+
 Framebuffer::Framebuffer() : initialized(false), width(0), height(0) {
 }
 
@@ -176,5 +178,4 @@ extern "C" {
     bool isPinConnected(int pin) { (void)pin; return false; }
 }
 
-static FramebufferPixel pixels[MAX_FRAMEBUFFER_HEIGHT][MAX_FRAMEBUFFER_WIDTH];
 Framebuffer framebuffer;

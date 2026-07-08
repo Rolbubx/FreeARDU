@@ -46,6 +46,7 @@ private:
     int flushParallelDisplay();
 
     ScreenDetectionResult screenInfo;
+    bool initialized;
     int width;
     int height;
     // We avoid dynamic allocation. For 1MB RAM, we can afford some static buffer if needed,

@@ -1,45 +1,262 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set "target_branch=updates-branch"
+::==============================================================================
+:: Git Upload Script for Windows
+:: Purpose: Safe and user-friendly Git commit and push automation
+:: Version: 2.0 (Professional Edition)
+::==============================================================================
 
-echo [GIT] Preparing to upload changes to branch: %target_branch%
+chcp 65001 >nul
+cls
 
-:: Check if there are changes
-git status --short
-if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Not a git repository or git not found.
+::==============================================================================
+:: CONFIGURATION
+::==============================================================================
+
+set "SCRIPT_VERSION=2.0"
+set "SCRIPT_NAME=Git Upload Assistant"
+
+::==============================================================================
+:: BANNER & HEADER
+::==============================================================================
+
+echo.
+echo ╔══════════════════════════════════════════════════════════════════════════╗
+echo ║                                                                          ║
+echo ║                  %SCRIPT_NAME% v%SCRIPT_VERSION%                         ║
+echo ║              Safe and Professional Git Automation                        ║
+echo ║                                                                          ║
+echo ╚══════════════════════════════════════════════════════════════════════════╝
+echo.
+
+::==============================================================================
+:: CHECK GIT INSTALLATION
+::==============================================================================
+
+echo ║ [STEP 1/5] Checking Git Installation...
+echo ║
+
+git --version >nul 2>&1
+
+if errorlevel 1 (
+    echo ║ ✗ ERROR: Git is not installed or not found in PATH
+    echo ║
+    echo ║ Please install Git from: https://git-scm.com/download/win
+    echo ║ After installation, restart this script.
+    echo ║
+    echo ╚══════════════════════════════════════════════════════════════════════════╝
+    echo.
     pause
     exit /b 1
 )
 
-:: Add all changes
-git add .
+for /f "tokens=*" %%i in ('git --version') do set "GIT_VERSION=%%i"
+echo ║ ✓ Git found: %GIT_VERSION%
+echo ║
+
+::==============================================================================
+:: CHECK REPOSITORY STATUS
+::==============================================================================
+
+echo ║ [STEP 2/5] Checking Repository Status...
+echo ║
+
+git rev-parse --is-inside-work-tree >nul 2>&1
+
+if errorlevel 1 (
+    echo ║ ✗ ERROR: Not a Git repository
+    echo ║
+    echo ║ Please navigate to a valid Git repository and run this script again.
+    echo ║
+    echo ╚══════════════════════════════════════════════════════════════════════════╝
+    echo.
+    pause
+    exit /b 1
+)
+
+echo ║ ✓ Valid Git repository detected
+echo ║
+
+::==============================================================================
+:: CHECK FOR MODIFICATIONS
+::==============================================================================
+
+echo ║ [STEP 3/5] Scanning for Changes...
+echo ║
+
+for /f "tokens=*" %%i in ('git status --porcelain') do set "HAS_CHANGES=true"
+
+if not defined HAS_CHANGES (
+    echo ║ ✓ Status: Repository is clean
+    echo ║
+    echo ║ ℹ  No changes detected to commit
+    echo ║
+    echo ║ This could mean:
+    echo ║   • All changes have already been committed
+    echo ║   • No files have been modified
+    echo ║   • All changes were staged but not tracked
+    echo ║
+    echo ║ If you have uncommitted changes, ensure they are in the working directory.
+    echo ║
+    echo ╚══════════════════════════════════════════════════════════════════════════╝
+    echo.
+    pause
+    exit /b 0
+)
+
+echo ║ ✓ Changes detected - ready to commit
+echo ║
+
+::==============================================================================
+:: GET CURRENT BRANCH
+::==============================================================================
+
+echo ║ [STEP 4/5] Retrieving Branch Information...
+echo ║
+
+for /f "tokens=*" %%i in ('git rev-parse --abbrev-ref HEAD') do set "CURRENT_BRANCH=%%i"
+
+echo ║ ✓ Current branch: %CURRENT_BRANCH%
+echo ║
+
+::==============================================================================
+:: GET COMMIT MESSAGE
+::==============================================================================
+
+echo ║ Commit Message (required):
+echo ║
+
+set "COMMIT_MSG="
+set /p COMMIT_MSG=║ Enter commit message: 
+
+if "!COMMIT_MSG!"=="" (
+    echo ║
+    echo ║ ✗ ERROR: Commit message cannot be empty
+    echo ║
+    echo ╚══════════════════════════════════════════════════════════════════════════╝
+    echo.
+    pause
+    exit /b 1
+)
+
+echo ║
+echo ║ Commit message set: "%COMMIT_MSG%"
+echo ║
+
+::==============================================================================
+:: DISPLAY SUMMARY & CONFIRMATION
+::==============================================================================
+
+echo ║ [STEP 5/5] Review and Confirm
+echo ║
+echo ║ ─────────────────────────────────────────────────────────────────────────
+echo ║
+echo ║  Target Branch    : %CURRENT_BRANCH%
+echo ║  Commit Message   : %COMMIT_MSG%
+echo ║
+echo ║ ─────────────────────────────────────────────────────────────────────────
+echo ║
+
+set /p CONFIRM="║ Proceed with commit and push? [Y/N]: "
+
+if /i not "!CONFIRM!"=="Y" (
+    echo ║
+    echo ║ ✗ Operation cancelled by user
+    echo ║
+    echo ╚══════════════════════════════════════════════════════════════════════════╝
+    echo.
+    pause
+    exit /b 1
+)
+
+echo ║
+
+::==============================================================================
+:: EXECUTE GIT OPERATIONS
+::==============================================================================
+
+echo ║ Executing Git operations...
+echo ║
+
+:: Stage all changes
+echo ║ • Staging changes...
+git add -A >nul 2>&1
+
+if errorlevel 1 (
+    echo ║ ✗ ERROR: Failed to stage changes
+    echo ║
+    echo ╚══════════════════════════════════════════════════════════════════════════╝
+    echo.
+    pause
+    exit /b 1
+)
+
+echo ║ ✓ Changes staged successfully
+echo ║
 
 :: Commit changes
-set /p "commit_msg=Enter commit message: "
-if "!commit_msg!"=="" set "commit_msg=Update from gitUpload.bat"
-git commit -m "!commit_msg!"
+echo ║ • Committing changes...
+git commit -m "!COMMIT_MSG!" >nul 2>&1
 
-:: Check if branch exists, if not create it
-git branch | findstr /C:"%target_branch%" >nul
-if %ERRORLEVEL% neq 0 (
-    echo [GIT] Creating new branch: %target_branch%
-    git checkout -b %target_branch%
-) else (
-    echo [GIT] Switching to branch: %target_branch%
-    git checkout %target_branch%
-    git merge main
+if errorlevel 1 (
+    echo ║ ✗ ERROR: Failed to commit changes
+    echo ║
+    echo ║ This could indicate:
+    echo ║   • Commit message contains invalid characters
+    echo ║   • No changes were actually staged
+    echo ║   • Permission issues in the repository
+    echo ║
+    echo ╚══════════════════════════════════════════════════════════════════════════╝
+    echo.
+    pause
+    exit /b 1
 )
 
-:: Push to remote
-echo [GIT] Pushing to origin %target_branch%...
-git push origin %target_branch%
+echo ║ ✓ Commit created successfully
+echo ║
 
-if %ERRORLEVEL% equ 0 (
-    echo [SUCCESS] Upload completed successfully.
-) else (
-    echo [ERROR] Upload failed.
+:: Push changes
+echo ║ • Pushing to remote repository...
+git push 2>&1
+
+if errorlevel 1 (
+    echo ║
+    echo ╠══════════════════════════════════════════════════════════════════════════╣
+    echo ║ ⚠  WARNING: Git push encountered an error!
+    echo ║
+    echo ║ Possible causes:
+    echo ║   • No internet connection
+    echo ║   • Merge conflicts exist
+    echo ║   • Remote branch has diverged from local
+    echo ║   • Insufficient permissions
+    echo ║   • Remote repository is not accessible
+    echo ║
+    echo ║ Please resolve the issue and try pushing manually using:
+    echo ║   git push --force-with-lease
+    echo ║
+    echo ╚══════════════════════════════════════════════════════════════════════════╝
+    echo.
+    pause
+    exit /b 1
 )
+
+echo ║ ✓ Changes pushed successfully
+echo ║
+
+::==============================================================================
+:: SUCCESS MESSAGE
+::==============================================================================
+
+echo ║
+echo ╠══════════════════════════════════════════════════════════════════════════╣
+echo ║  ✓ SUCCESS!
+echo ║
+echo ║  Your changes have been successfully committed and pushed to:
+echo ║  Branch: %CURRENT_BRANCH%
+echo ║
+echo ╚══════════════════════════════════════════════════════════════════════════╝
+echo.
 
 pause
+exit /b 0

@@ -2,7 +2,9 @@
 
 **Bare-Metal Cortex-M7 Firmware for i.MX RT1060 with Framebuffer & Automatic Display Detection**
 
-FreeARDU is a production-ready bare-metal firmware project for the NXP i.MX RT1060 microcontroller, featuring a custom startup/runtime environment, optimized linker script, graphics framebuffer support, and automatic hardware detection for multiple display interfaces. This project provides developers with a lightweight foundation for embedded graphics applications on Cortex-M7 systems.
+FreeARDU is a production-ready bare-metal firmware project for the NXP i.MX RT1060 microcontroller, featuring a custom startup/runtime environment, optimized linker script, graphics framebuffer support, and automatic display detection.
+
+> ⚠️ **Board Compatibility:** This project is specifically configured for the **NXP i.MX RT1060 EVK** board (`nxp_imxrt1060_evk`). While the core architecture is portable to other Cortex-M7 devices, hardware-specific configurations (linker script, pin assignments, memory layout) are tailored for this board. For other boards, you will need to adapt the linker script (`imxrt1060.ld`) and `platformio.ini` configuration.
 
 ## ⚠️ Status
 
@@ -140,7 +142,7 @@ struct ScreenDetectionResult {
 - **PlatformIO Core** (or VS Code with PlatformIO extension)
 - **Arm GNU Toolchain** (auto-installed by PlatformIO)
 - **J-Link debugger** (for flashing/debugging NXP EVK boards)
-- i.MX RT1060 EVK board (or compatible Cortex-M7 dev board)
+- **NXP i.MX RT1060 EVK** board (required for this configuration)
 
 ### Building
 
@@ -406,7 +408,7 @@ void loop() {
 
 Contributions are welcome! Please:
 
-1. Test on real hardware (i.MX RT1060 EVK or compatible)
+1. Test on real hardware (i.MX RT1060 EVK)
 2. Follow the existing code style (K&R for C, Google C++ for C++)
 3. Add documentation for new features
 4. Report issues with full reproduction steps
@@ -455,4 +457,3 @@ platformio run -e nxp_imxrt1060_evk --target upload
 # Monitor serial (after upload)
 platformio device monitor -b 115200
 ```
-

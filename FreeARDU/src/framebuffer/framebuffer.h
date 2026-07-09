@@ -5,8 +5,8 @@
 #include "../GraphicalEntryDetector/graphical_entry_detector.h"
 
 struct Vector2 {
-    int x;
-    int y;
+    unsigned int x;
+    unsigned int y;
 };
 
 struct Color {
@@ -47,8 +47,8 @@ private:
 
     ScreenDetectionResult screenInfo;
     bool initialized;
-    int width;
-    int height;
+    unsigned int width;
+    unsigned int height;
     // We avoid dynamic allocation. For 1MB RAM, we can afford some static buffer if needed,
     // but for now we keep it as a wrapper to PUSH_PIXEL or similar.
 };

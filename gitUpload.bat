@@ -40,6 +40,7 @@ echo ║
 git --version >nul 2>&1
 
 if errorlevel 1 (
+    echo  ══════════════════════════════════════════════════════════════════════════
     echo ║ ✗ ERROR: Git is not installed or not found in PATH
     echo ║
     echo ║ Please install Git from: https://git-scm.com/download/win

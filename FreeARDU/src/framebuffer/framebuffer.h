@@ -30,6 +30,7 @@ public:
     int PUSH_PIXEL(Vector2 position, Color color);
     int CLEAR(Color color);
     int FLUSH();
+    int EMPTY_BUFFER(int x, int y, Color FRMBUFFER_CONTENT[]);
 
 private:
     void detectFramebufferSize();

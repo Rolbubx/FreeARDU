@@ -1,10 +1,16 @@
 #include "framebuffer.h"
+#include "../uart_putc/UART_PUTCHAR.h"
+
+#include <cstdio>
 
 #ifdef FREEARDU_BARE_METAL
 #include <stdint.h>
 #else
 #include <Arduino.h>
 #endif
+
+#define length 200
+#define h_buffer_ 100
 
 #define MAX_FRAMEBUFFER_WIDTH 320
 #define MAX_FRAMEBUFFER_HEIGHT 240
@@ -17,14 +23,19 @@ Framebuffer::Framebuffer() : initialized(false), width(0), height(0) {
 int Framebuffer::INIT() {
     screenInfo = DETECT_SCRN();
 
-    if (!screenInfo.canDraw) {
+    if (!screenInfo.canDraw && screenInfo.type != SCREEN_NONE) {
         initialized = false;
         width = 0;
         height = 0;
         return -1;
     }
 
-    detectFramebufferSize();
+    if (screenInfo.type == SCREEN_NONE) {
+        width = length;
+        height = h_buffer_;
+    } else {
+        detectFramebufferSize();
+    }
 
     if (width <= 0 || height <= 0) {
         initialized = false;
@@ -51,9 +62,26 @@ int Framebuffer::HEIGHT() const {
     return height;
 }
 
-int Framebuffer::PUSH_PIXEL(Vector2 position, Color color) {
+int Framebuffer::PUSH_PIXEL(Vector2 position, Color color, bool ProductionMode) {
     if (!initialized) {
         return -1;
+    } else if (screenInfo.type == SCREEN_NONE && ProductionMode) {
+        if (position.x < (unsigned int)width && position.y < (unsigned int)height) {
+            // Print pixel info to console using ANSI escape codes for color if possible
+            // Format: \033[38;2;R;G;Bm#\033[0m
+            uint8_t r = colorToByte(color.r);
+            uint8_t g = colorToByte(color.g);
+            uint8_t b = colorToByte(color.b);
+
+            uart_puts("\033[38;2;");
+            uart_print_uint(r);
+            uart_putc(';');
+            uart_print_uint(g);
+            uart_putc(';');
+            uart_print_uint(b);
+            uart_puts("m#\033[0m");
+        }
+        return 0;
     }
 
     int x = position.x;
@@ -88,7 +116,7 @@ int Framebuffer::CLEAR(Color color) {
     return 0;
 }
 
-int EMPTY_BUFFER(Color FRMBUFFER_CONTENT[], Framebuffer f) {
+int EMPTY_BUFFER(Color FRMBUFFER_CONTENT[], Framebuffer f, bool ProductionMode) {
     int x = f.WIDTH();
     int y = f.HEIGHT();
     for (int i = 0; i < x * y; i++) {
@@ -98,7 +126,7 @@ int EMPTY_BUFFER(Color FRMBUFFER_CONTENT[], Framebuffer f) {
         t.y = i / x;
 
 
-        f.PUSH_PIXEL(t, FRMBUFFER_CONTENT[i]);
+        f.PUSH_PIXEL(t, FRMBUFFER_CONTENT[i], ProductionMode);
     }
 
     f.FLUSH();
@@ -122,6 +150,9 @@ int Framebuffer::FLUSH() {
 
         case SCREEN_PARALLEL_DISPLAY:
             return flushParallelDisplay();
+
+        case SCREEN_NONE:
+            return 0;
 
         default:
             return -2;

@@ -27,10 +27,10 @@ public:
     int INIT();
     int WIDTH() const;
     int HEIGHT() const;
-    int PUSH_PIXEL(Vector2 position, Color color);
+    int PUSH_PIXEL(Vector2 position, Color color, bool ProductionMode);
     int CLEAR(Color color);
     int FLUSH();
-    int EMPTY_BUFFER(int x, int y, Color FRMBUFFER_CONTENT[]);
+    int EMPTY_BUFFER(int x, int y, Color FRMBUFFER_CONTENT[], bool ProductionMode);
 
 private:
     void detectFramebufferSize();

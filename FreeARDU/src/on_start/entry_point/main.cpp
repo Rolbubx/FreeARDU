@@ -28,6 +28,9 @@ void simulate_cycle_delay() {
 
 #define CURRENT_DEBUG_LEVEL DEBUG_LEVEL_VERBOSE
 
+
+#define IsProductionMode false
+
 // Master switch for all debug/diagnostic commands.
 // Set to false to lock the shell down to a minimal safe command set
 // (useful for a "production" build where you don't want DUMP_MEMORY,
@@ -593,7 +596,7 @@ void display_splash() {
     uart_puts("/ __/ / /  /  __/  __/ ___ |/ _, _/ /_/ / /_/ /   \r\n");
     uart_puts("/_/   /_/   \\___/\\___/_/  |_/_/ |_/_____/\\____/    \r\n");
     uart_puts("\r\n");
-    uart_puts("FreeARDU Kernel version 1.0.0-baremetal\r\n");
+    uart_puts("FreeARDU Kernel version 1.0.1-baremetal\r\n");
     uart_puts("Initializing system components...\r\n\r\n");
 
     const char* steps[] = {
@@ -663,7 +666,7 @@ void display_splash() {
     }
 
     uart_puts("\r\n[ 100% ] Initialization Complete. READY.\r\n");
-    uart_puts("\r\nWelcome to FreeARDU OS. Type HELP for commands.\r\n");
+    uart_puts("\r\nWelcome to FreeARDU DOSUart mode. Type HELP for commands.\r\n");
 }
 
 
@@ -725,9 +728,29 @@ extern "C" int main() {
     char cmd_buffer[CMD_BUFFER_SIZE];
 
     while (1) {
-        uart_puts("> ");
-        uart_read_line(cmd_buffer, CMD_BUFFER_SIZE);
-        handle_command(cmd_buffer);
+        if (IsProductionMode == false) {
+            uart_puts("> ");
+            uart_read_line(cmd_buffer, CMD_BUFFER_SIZE);
+            handle_command(cmd_buffer);
+        } else if (IsProductionMode == true) {
+            uart_puts("Free ARDU Production mode");
+            // waits 5 seconds
+            for (volatile int i = 0; i < 5000000; i++) {
+                if (uart_data_available()) {
+                    char c = uart_getc();
+                    if (c == 'F' || c == 'f') {
+                        enter_upd_mode();
+                        break;
+                    }
+                }
+            }
+            uart_puts("\x1B[2J\x1B[H");
+            uart_puts("Entering os mode....");
+            // draws a pixel
+            Color s = {0.0f, 0.0f, 0.0f};
+            Vector2 t = {5,5};
+            framebuffer.PUSH_PIXEL(t, s, false);
+        }
     }
 
     return 0;

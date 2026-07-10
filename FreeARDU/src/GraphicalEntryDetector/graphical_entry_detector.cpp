@@ -57,24 +57,6 @@ static ScreenDetectionResult makeEmptyResult() {
     return result;
 }
 
-static void addPin(ScreenDetectionResult &result, int pin) {
-    if (pin < 0) {
-        return;
-    }
-
-    if (result.pinCount >= MAX_SCREEN_PINS) {
-        return;
-    }
-
-    for (uint8_t i = 0; i < result.pinCount; i++) {
-        if (result.pins[i] == pin) {
-            return;
-        }
-    }
-
-    result.pins[result.pinCount] = pin;
-    result.pinCount++;
-}
 
 static bool probeI2CAddress(uint8_t address) {
     Wire_beginTransmission(address);

@@ -37,7 +37,9 @@ void simulate_cycle_delay() {
 #define STRESS_TEST_ITERATIONS 10000000
 #define CMD_BUFFER_SIZE 64
 
-#define BUILD_VERSION "Build 1.0.0"
+#define BUILD_VERSION "Build 1.0.1"
+#define BUILD_DATE    __DATE__
+#define BUILD_TIME    __TIME__
 
 
 // ============================================================
@@ -147,7 +149,7 @@ void cmd_crt(char* args) {
     }
 
     if (slot == -1) {
-        uart_puts("Error: VFS full\r\n");
+        kernel_panic("S/0x06", "VFS Storage Exhausted (Critical system file limit reached)");
         return;
     }
 
@@ -186,6 +188,10 @@ void cmd_cd(char* args) {
     int idx = find_node(name, current_dir_idx);
     if (idx != -1) {
         current_dir_idx = idx;
+        if (vfs[idx].is_folder == false && !string_equals(name, "..")) {
+             // If someone tries to CD into a file, we could warn, but let's stick to the user's "panic can really happen"
+             // maybe not here though as it's a user error.
+        }
     } else {
         uart_puts("Directory not found\r\n");
     }
@@ -432,9 +438,12 @@ void print_uptime() {
 }
 
 void print_version() {
-    uart_puts("FreeARDU firmware\r\n");
-    uart_puts("Target: NXP i.MX RT1060 (Cortex-M7 @ 600 MHz)\r\n");
-    uart_puts("Build date: " __DATE__ " " __TIME__ "\r\n");
+    uart_puts(BUILD_VERSION);
+    uart_puts(" (Built on ");
+    uart_puts(BUILD_DATE);
+    uart_puts(" at ");
+    uart_puts(BUILD_TIME);
+    uart_puts(")\r\n");
 }
 
 // ============================================================
@@ -464,6 +473,7 @@ void print_help() {
         uart_puts("  RESTART       - soft-reset the system\r\n");
         uart_puts("  HALT          - stop the CPU\r\n");
         uart_puts("  PANIC         - trigger a test kernel panic\r\n");
+        uart_puts("  CAUSE_FAULT   - trigger a real hardware HardFault\r\n");
     #endif
 }
 
@@ -549,7 +559,13 @@ void handle_command(char* cmd) {
         while(1) { __asm("wfi"); }
     }
     else if (string_equals(cmd, "PANIC")) {
-        kernel_panic("User-triggered test panic (PANIC command)");
+        kernel_panic("S/0xFF", "User-triggered test panic (PANIC command)");
+    }
+    else if (string_equals(cmd, "CAUSE_FAULT")) {
+        uart_puts("Triggering HardFault via illegal access...\r\n");
+        volatile uint32_t* bad_ptr = (volatile uint32_t*)0xFFFFFFF0;
+        uint32_t val = *bad_ptr;
+        (void)val;
     }
     #endif
     else {
@@ -602,18 +618,37 @@ void display_splash() {
         switch(i) {
             case 0: uptime_init(); break;
             case 1: 
-                if (&_sdata < &_edata && &_sbss < &_ebss) uart_puts("OK"); 
-                else uart_puts("FAILED"); 
+                if (&_sdata < &_edata && &_sbss < &_ebss) {
+                    uart_puts("OK"); 
+                } else {
+                    kernel_panic("S/0x05", "Memory Layout Sanity Check Failed (Linker symbols invalid)");
+                }
                 break;
             case 2: {
                 ScreenDetectionResult scr = DETECT_SCRN();
                 if (scr.type != SCREEN_NONE) uart_puts("FOUND");
-                else uart_puts("NONE");
+                else uart_puts("NONE"); // Not necessarily critical, but can be
                 break;
             }
-            case 3: framebuffer.INIT(); break;
+            case 3: 
+                if (framebuffer.INIT() == 0) {
+                    uart_puts("OK");
+                } else {
+                    // Optional: Panic if FB init is required
+                    // kernel_panic("H/0x01", "Framebuffer Initialization Failed");
+                    uart_puts("FAILED");
+                }
+                break;
             case 4: vfs_init(); break;
             case 5: break;
+        }
+
+        // Apply "slow down" if MHz was changed in UpdMode
+        // Factor to slow down. e.g. 600M / 100M = 6.
+        uint32_t delay_limit = 2000000;
+        if (current_cpu_mhz < CPU_FREQ) {
+            uint32_t factor = CPU_FREQ / current_cpu_mhz;
+            delay_limit *= factor;
         }
 
         // Fake loading bar for effect as requested "real loading (like with a loading bar ect)"
@@ -624,7 +659,7 @@ void display_splash() {
         }
         uart_puts("]\r\n");
 
-        for (volatile int delay = 0; delay < 2000000; delay++); // Delay to see the bar
+        for (volatile uint32_t delay = 0; delay < delay_limit; delay++); // Delay to see the bar
     }
 
     uart_puts("\r\n[ 100% ] Initialization Complete. READY.\r\n");

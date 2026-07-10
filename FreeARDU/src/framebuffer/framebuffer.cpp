@@ -59,15 +59,13 @@ int Framebuffer::PUSH_PIXEL(Vector2 position, Color color) {
     int x = position.x;
     int y = position.y;
 
-    if (x < 0 || x >= width || y < 0 || y >= height) {
-        return -2;
+    if (x < (int)width && y < (int)height) {
+        pixels[y][x] = {
+            colorToByte(color.r),
+            colorToByte(color.g),
+            colorToByte(color.b)
+        };
     }
-
-    pixels[y][x] = {
-        colorToByte(color.r),
-        colorToByte(color.g),
-        colorToByte(color.b)
-    };
 
     return 0;
 }
@@ -81,8 +79,8 @@ int Framebuffer::CLEAR(Color color) {
     uint8_t g = colorToByte(color.g);
     uint8_t b = colorToByte(color.b);
 
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
+    for (unsigned int y = 0; y < height; y++) {
+        for (unsigned int x = 0; x < width; x++) {
             pixels[y][x] = { r, g, b };
         }
     }

@@ -90,6 +90,23 @@ int Framebuffer::CLEAR(Color color) {
     return 0;
 }
 
+int EMPTY_BUFFER(Color FRMBUFFER_CONTENT[], Framebuffer f) {
+    int x = f.WIDTH();
+    int y = f.HEIGHT();
+    for (int i = 0; i < x * y; i++) {
+        Vector2 t;
+
+        t.x = i % x;
+        t.y = i / x;
+
+
+        f.PUSH_PIXEL(t, FRMBUFFER_CONTENT[i]);
+    }
+
+    f.FLUSH();
+    return 0;
+}
+
 int Framebuffer::FLUSH() {
     if (!initialized) {
         return -1;

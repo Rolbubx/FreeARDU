@@ -64,7 +64,11 @@ static void print_panic_banner() {
     
     uart_puts("\r\nSystem halted.\r\n");
     uart_puts("\033[0m"); // Reset color
-
+    // waits 5 seconds
+    for (volatile unsigned int i = 0; i < 50000000; i++) {
+        // restart
+        reset_handler();
+    }
     #if PANIC_AUTO_RESTART
         uart_puts("Auto-restart is enabled. Rebooting in 3 seconds...\r\n");
         for (volatile unsigned int i = 0; i < 200000000; i++) {

@@ -6,16 +6,28 @@
         "output": ".pio\\build\\mimxrt1060_evk\\src\\GraphicalEntryDetector\\graphical_entry_detector.o"
     },
     {
-        "command": "C:\\Users\\safouane\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-g++.exe -o .pio\\build\\mimxrt1060_evk\\src\\boot_splash\\boot_splash.o -c -fno-rtti -fno-exceptions -Os -ffunction-sections -fdata-sections -Wall -mthumb -nostdlib -mcpu=cortex-m7 -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=soft -O3 -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti -nostartfiles -DF_CPU=600000000L -DPLATFORMIO=60119 -DCPU_MIMXRT1062DVL6A -DFREEARDU_BARE_METAL -IFreeARDU\\include -IFreeARDU\\src FreeARDU\\src\\boot_splash\\boot_splash.cpp",
+        "command": "C:\\Users\\safouane\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-g++.exe -o .pio\\build\\mimxrt1060_evk\\src\\api\\api.o -c -fno-rtti -fno-exceptions -Os -ffunction-sections -fdata-sections -Wall -mthumb -nostdlib -mcpu=cortex-m7 -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=soft -O3 -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti -nostartfiles -DF_CPU=600000000L -DPLATFORMIO=60119 -DCPU_MIMXRT1062DVL6A -DFREEARDU_BARE_METAL -IFreeARDU\\include -IFreeARDU\\src FreeARDU\\src\\api\\api.cpp",
         "directory": "F:\\FreeARDUrep",
-        "file": "FreeARDU\\src\\boot_splash\\boot_splash.cpp",
-        "output": ".pio\\build\\mimxrt1060_evk\\src\\boot_splash\\boot_splash.o"
+        "file": "FreeARDU\\src\\api\\api.cpp",
+        "output": ".pio\\build\\mimxrt1060_evk\\src\\api\\api.o"
     },
     {
         "command": "C:\\Users\\safouane\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-g++.exe -o .pio\\build\\mimxrt1060_evk\\src\\framebuffer\\framebuffer.o -c -fno-rtti -fno-exceptions -Os -ffunction-sections -fdata-sections -Wall -mthumb -nostdlib -mcpu=cortex-m7 -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=soft -O3 -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti -nostartfiles -DF_CPU=600000000L -DPLATFORMIO=60119 -DCPU_MIMXRT1062DVL6A -DFREEARDU_BARE_METAL -IFreeARDU\\include -IFreeARDU\\src FreeARDU\\src\\framebuffer\\framebuffer.cpp",
         "directory": "F:\\FreeARDUrep",
         "file": "FreeARDU\\src\\framebuffer\\framebuffer.cpp",
         "output": ".pio\\build\\mimxrt1060_evk\\src\\framebuffer\\framebuffer.o"
+    },
+    {
+        "command": "C:\\Users\\safouane\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-gcc.exe -mthumb -mcpu=cortex-m7 -x assembler-with-cpp -DF_CPU=600000000L -DPLATFORMIO=60119 -DCPU_MIMXRT1062DVL6A -DFREEARDU_BARE_METAL -IFreeARDU\\include -IFreeARDU\\src -c -o .pio\\build\\mimxrt1060_evk\\src\\kernel_panic_assembly_returner\\HardFault_Handler.o FreeARDU\\src\\kernel_panic_assembly_returner\\HardFault_Handler.S",
+        "directory": "F:\\FreeARDUrep",
+        "file": "FreeARDU\\src\\kernel_panic_assembly_returner\\HardFault_Handler.S",
+        "output": ".pio\\build\\mimxrt1060_evk\\src\\kernel_panic_assembly_returner\\HardFault_Handler.o"
+    },
+    {
+        "command": "C:\\Users\\safouane\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-gcc.exe -mthumb -mcpu=cortex-m7 -x assembler-with-cpp -DF_CPU=600000000L -DPLATFORMIO=60119 -DCPU_MIMXRT1062DVL6A -DFREEARDU_BARE_METAL -IFreeARDU\\include -IFreeARDU\\src -c -o .pio\\build\\mimxrt1060_evk\\src\\on_start\\boot\\UpdMode.o FreeARDU\\src\\on_start\\boot\\UpdMode.S",
+        "directory": "F:\\FreeARDUrep",
+        "file": "FreeARDU\\src\\on_start\\boot\\UpdMode.S",
+        "output": ".pio\\build\\mimxrt1060_evk\\src\\on_start\\boot\\UpdMode.o"
     },
     {
         "command": "C:\\Users\\safouane\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-gcc.exe -mthumb -mcpu=cortex-m7 -x assembler-with-cpp -DF_CPU=600000000L -DPLATFORMIO=60119 -DCPU_MIMXRT1062DVL6A -DFREEARDU_BARE_METAL -IFreeARDU\\include -IFreeARDU\\src -c -o .pio\\build\\mimxrt1060_evk\\src\\on_start\\boot\\startup.o FreeARDU\\src\\on_start\\boot\\startup.S",
@@ -34,6 +46,12 @@
         "directory": "F:\\FreeARDUrep",
         "file": "FreeARDU\\src\\panic\\panic.cpp",
         "output": ".pio\\build\\mimxrt1060_evk\\src\\panic\\panic.o"
+    },
+    {
+        "command": "C:\\Users\\safouane\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-gcc.exe -o .pio\\build\\mimxrt1060_evk\\src\\third_party\\ugui\\ugui.o -c -Os -ffunction-sections -fdata-sections -Wall -mthumb -nostdlib -mcpu=cortex-m7 -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=soft -O3 -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti -nostartfiles -DF_CPU=600000000L -DPLATFORMIO=60119 -DCPU_MIMXRT1062DVL6A -DFREEARDU_BARE_METAL -IFreeARDU\\include -IFreeARDU\\src FreeARDU\\src\\third_party\\ugui\\ugui.c",
+        "directory": "F:\\FreeARDUrep",
+        "file": "FreeARDU\\src\\third_party\\ugui\\ugui.c",
+        "output": ".pio\\build\\mimxrt1060_evk\\src\\third_party\\ugui\\ugui.o"
     },
     {
         "command": "C:\\Users\\safouane\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-g++.exe -o .pio\\build\\mimxrt1060_evk\\src\\uart_putc\\UART_PUTCHAR.o -c -fno-rtti -fno-exceptions -Os -ffunction-sections -fdata-sections -Wall -mthumb -nostdlib -mcpu=cortex-m7 -mcpu=cortex-m7 -mthumb -mfpu=fpv5-d16 -mfloat-abi=soft -O3 -ffunction-sections -fdata-sections -fno-exceptions -fno-rtti -nostartfiles -DF_CPU=600000000L -DPLATFORMIO=60119 -DCPU_MIMXRT1062DVL6A -DFREEARDU_BARE_METAL -IFreeARDU\\include -IFreeARDU\\src FreeARDU\\src\\uart_putc\\UART_PUTCHAR.cpp",

@@ -1,57 +1,43 @@
-#ifndef FRAMEBUFFER_H
-#define FRAMEBUFFER_H
+#ifndef DISPLAY_DRIVER_H
+#define DISPLAY_DRIVER_H
 
 #include <stdint.h>
 #include "../GraphicalEntryDetector/graphical_entry_detector.h"
+#include "../third_party/ugui/ugui.h"
 
-struct Vector2 {
-    unsigned int x;
-    unsigned int y;
-};
-
-struct Color {
-    float r;
-    float g;
-    float b;
-};
-
-struct FramebufferPixel {
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-};
-
-class Framebuffer {
+// Hardware display driver for FreeARDU
+// Handles low-level display initialization and buffer flushing
+class DisplayDriver {
 public:
-    Framebuffer();
-    int INIT();
-    int WIDTH() const;
-    int HEIGHT() const;
-    int PUSH_PIXEL(Vector2 position, Color color, bool ProductionMode);
-    int CLEAR(Color color);
-    int FLUSH();
-    int EMPTY_BUFFER(int x, int y, Color FRMBUFFER_CONTENT[], bool ProductionMode);
+    DisplayDriver();
+    
+    // Initializes hardware and uGUI
+    int init();
+    
+    // Flushes the pixel buffer to the actual hardware
+    int flush();
+
+    // Accessors
+    int getWidth() const { return width; }
+    int getHeight() const { return height; }
+    bool isInitialized() const { return initialized; }
+
+    // uGUI pixel callback
+    static void drawPixelCallback(UG_S16 x, UG_S16 y, UG_COLOR c);
 
 private:
-    void detectFramebufferSize();
-    void detectI2COLEDSize();
-    void detectI2CLCDSize();
-    void detectSPIDisplaySize();
-    void detectParallelDisplaySize();
-
-    uint8_t colorToByte(float value);
-
-    int flushI2COLED();
-    int flushI2CLCD();
-    int flushSPIDisplay();
-    int flushParallelDisplay();
+    void detectSize();
+    int flushSPI();
+    int flushParallel();
 
     ScreenDetectionResult screenInfo;
     bool initialized;
     unsigned int width;
     unsigned int height;
-    // We avoid dynamic allocation. For 1MB RAM, we can afford some static buffer if needed,
-    // but for now we keep it as a wrapper to PUSH_PIXEL or similar.
+    
+    UG_GUI gui;
 };
 
-#endif // FRAMEBUFFER_H
+extern DisplayDriver display;
+
+#endif // DISPLAY_DRIVER_H

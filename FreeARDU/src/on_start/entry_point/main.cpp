@@ -1,6 +1,7 @@
 #ifdef FREEARDU_BARE_METAL
 #include "../../framebuffer/framebuffer.h"
 #include "../../GraphicalEntryDetector/graphical_entry_detector.h"
+#include "../../api/api.h"
 #include "uart_putc/UART_PUTCHAR.h"
 #include "panic/panic.h"
 
@@ -29,7 +30,7 @@ void simulate_cycle_delay() {
 #define CURRENT_DEBUG_LEVEL DEBUG_LEVEL_VERBOSE
 
 
-#define IsProductionMode false
+#define IsProductionMode true
 
 // Master switch for all debug/diagnostic commands.
 // Set to false to lock the shell down to a minimal safe command set
@@ -232,7 +233,7 @@ extern "C" {
 
 extern "C" void reset_handler();
 
-extern Framebuffer framebuffer;
+extern DisplayDriver display;
 
 // ============================================================
 // DWT cycle counter (hardware uptime, Cortex-M7)
@@ -408,8 +409,6 @@ void print_screen_info() {
 
     switch (info.type) {
         case SCREEN_NONE:             uart_puts("NONE"); break;
-        case SCREEN_I2C_OLED:         uart_puts("I2C OLED"); break;
-        case SCREEN_I2C_LCD:          uart_puts("I2C LCD"); break;
         case SCREEN_SPI_DISPLAY:      uart_puts("SPI Display"); break;
         case SCREEN_PARALLEL_DISPLAY: uart_puts("Parallel Display"); break;
         default:                      uart_puts("UNKNOWN"); break;
@@ -582,10 +581,9 @@ void handle_command(char* cmd) {
 // Boot sequence
 // ============================================================
 void init_display() {
-    framebuffer.INIT();
-    Color black = {0.0f, 0.0f, 0.0f};
-    framebuffer.CLEAR(black);
-    framebuffer.FLUSH();
+    display.init();
+    UG_FillScreen(C_BLACK);
+    display.flush();
 }
 
 void display_splash() {
@@ -596,7 +594,7 @@ void display_splash() {
     uart_puts("/ __/ / /  /  __/  __/ ___ |/ _, _/ /_/ / /_/ /   \r\n");
     uart_puts("/_/   /_/   \\___/\\___/_/  |_/_/ |_/_____/\\____/    \r\n");
     uart_puts("\r\n");
-    uart_puts("FreeARDU Kernel version 1.0.1-baremetal\r\n");
+    uart_puts("FreeARDU Kernel version 1.0.2-baremetal\r\n");
     uart_puts("Initializing system components...\r\n\r\n");
 
     const char* steps[] = {
@@ -617,7 +615,7 @@ void display_splash() {
         uart_puts(steps[i]);
         uart_puts("... ");
 
-        // Actual work for each step
+
         switch(i) {
             case 0: uptime_init(); break;
             case 1: 
@@ -634,8 +632,18 @@ void display_splash() {
                 break;
             }
             case 3: 
-                if (framebuffer.INIT() == 0) {
+                if (display.init() == 0) {
                     uart_puts("OK");
+    // Demo uGUI
+                    UG_FillScreen(C_BLUE);
+                    UG_DrawFrame(10, 10, 100, 100, C_WHITE);
+                    UG_PutString(15, 15, (char*)"FreeARDU uGUI");
+                    display.flush();
+                    
+                    // Added: Verification line to really show something is drawing
+                    UG_DrawLine(0, 0, (UG_S16)display.getWidth(), (UG_S16)display.getHeight(), C_RED);
+                    UG_DrawLine(0, (UG_S16)display.getHeight(), (UG_S16)display.getWidth(), 0, C_RED);
+                    display.flush();
                 } else {
                     // Optional: Panic if FB init is required
                     // kernel_panic("H/0x01", "Framebuffer Initialization Failed");
@@ -734,22 +742,31 @@ extern "C" int main() {
             handle_command(cmd_buffer);
         } else if (IsProductionMode == true) {
             uart_puts("Free ARDU Production mode");
-            // waits 5 seconds
-            for (volatile int i = 0; i < 5000000; i++) {
-                if (uart_data_available()) {
-                    char c = uart_getc();
-                    if (c == 'F' || c == 'f') {
-                        enter_upd_mode();
-                        break;
+
+            // Example API usage
+            if (true == false) {
+                API.pin->pinMode(13, PIN_MODE_OUTPUT);
+                API.pin->digitalWrite(13, PIN_HIGH);
+                API.adc->init(0);
+                API.watchdog->init(5000);
+
+                // waits 5 seconds
+                for (volatile int i = 0; i < 5000000; i++) {
+                    if (uart_data_available()) {
+                        char c = uart_getc();
+                        if (c == 'F' || c == 'f') {
+                            enter_upd_mode();
+                            break;
+                        }
                     }
+                    API.watchdog->feed();
                 }
+                uart_puts("\x1B[2J\x1B[H");
+                uart_puts("Entering os mode....");
+                // draws a pixel
+                UG_DrawPixel(5, 5, C_WHITE);
+                display.flush();
             }
-            uart_puts("\x1B[2J\x1B[H");
-            uart_puts("Entering os mode....");
-            // draws a pixel
-            Color s = {0.0f, 0.0f, 0.0f};
-            Vector2 t = {5,5};
-            framebuffer.PUSH_PIXEL(t, s, false);
         }
     }
 

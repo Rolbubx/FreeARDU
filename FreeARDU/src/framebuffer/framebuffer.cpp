@@ -1,198 +1,139 @@
 #include "framebuffer.h"
-
-#ifdef FREEARDU_BARE_METAL
+#include "../infos/INFOS.h"
+#include "../uart_putc/UART_PUTCHAR.h"
 #include <stdint.h>
-#else
-#include <Arduino.h>
-#endif
+#include <stddef.h>
+
+// i.MX RT1060 LPSPI4 Registers
+#define LPSPI4_BASE 0x403AC000
+#define LPSPI4_CR    (*(volatile uint32_t*)(LPSPI4_BASE + 0x10))
+#define LPSPI4_SR    (*(volatile uint32_t*)(LPSPI4_BASE + 0x14))
+#define LPSPI4_CFGR1 (*(volatile uint32_t*)(LPSPI4_BASE + 0x24))
+#define LPSPI4_FCR   (*(volatile uint32_t*)(LPSPI4_BASE + 0x58))
+#define LPSPI4_TDR   (*(volatile uint32_t*)(LPSPI4_BASE + 0x64))
+
+// GPIO Registers
+#define GPIO1_BASE 0x401B8000
+#define GPIO1_DR   (*(volatile uint32_t*)(GPIO1_BASE + 0x00))
+#define GPIO1_GDIR (*(volatile uint32_t*)(GPIO1_BASE + 0x04))
 
 #define MAX_FRAMEBUFFER_WIDTH 320
 #define MAX_FRAMEBUFFER_HEIGHT 240
 
-static FramebufferPixel pixels[MAX_FRAMEBUFFER_HEIGHT][MAX_FRAMEBUFFER_WIDTH];
+struct Pixel {
+    uint8_t r, g, b;
+};
 
-Framebuffer::Framebuffer() : initialized(false), width(0), height(0) {
+static Pixel pixels[MAX_FRAMEBUFFER_HEIGHT][MAX_FRAMEBUFFER_WIDTH];
+
+DisplayDriver::DisplayDriver() : initialized(false), width(0), height(0) {}
+
+void DisplayDriver::drawPixelCallback(UG_S16 x, UG_S16 y, UG_COLOR c) {
+    if (x >= 0 && (unsigned int)x < display.getWidth() && y >= 0 && (unsigned int)y < display.getHeight()) {
+        pixels[y][x] = {
+            (uint8_t)((c >> 16) & 0xFF),
+            (uint8_t)((c >> 8) & 0xFF),
+            (uint8_t)(c & 0xFF)
+        };
+    }
 }
 
-int Framebuffer::INIT() {
+int DisplayDriver::init() {
     screenInfo = DETECT_SCRN();
 
-    if (!screenInfo.canDraw) {
-        initialized = false;
-        width = 0;
-        height = 0;
+    if (!screenInfo.canDraw && screenInfo.type != SCREEN_NONE) {
         return -1;
     }
 
-    detectFramebufferSize();
+    if (screenInfo.type == SCREEN_NONE) {
+        width = 200;
+        height = 100;
+    } else {
+        detectSize();
+    }
 
-    if (width <= 0 || height <= 0) {
-        initialized = false;
+    if (width <= 0 || height <= 0 || width > MAX_FRAMEBUFFER_WIDTH || height > MAX_FRAMEBUFFER_HEIGHT) {
         return -2;
     }
 
-    if (width > MAX_FRAMEBUFFER_WIDTH || height > MAX_FRAMEBUFFER_HEIGHT) {
-        initialized = false;
-        return -3;
+    // Initialize Hardware
+    if (screenInfo.type == SCREEN_SPI_DISPLAY) {
+        LPSPI4_CR = 1; // Reset
+        while (LPSPI4_CR & 1);
+        LPSPI4_CFGR1 = 1; // Master
+        LPSPI4_FCR = 0;
+        LPSPI4_CR = (1 << 3) | (1 << 0);
+        
+        GPIO1_GDIR |= (1 << LPSPI4_DC_PIN) | (1 << LPSPI4_RST_PIN);
+        GPIO1_DR &= ~(1 << LPSPI4_RST_PIN);
+        for (volatile int i = 0; i < 1000000; i++);
+        GPIO1_DR |= (1 << LPSPI4_RST_PIN);
+        for (volatile int i = 0; i < 1000000; i++);
     }
 
+    UG_Init(&gui, drawPixelCallback, (UG_S16)width, (UG_S16)height);
+    UG_FillScreen(C_BLACK);
     initialized = true;
-    Color black = {0.0f, 0.0f, 0.0f};
-    CLEAR(black);
 
     return 0;
 }
 
-int Framebuffer::WIDTH() const {
-    return width;
-}
-
-int Framebuffer::HEIGHT() const {
-    return height;
-}
-
-int Framebuffer::PUSH_PIXEL(Vector2 position, Color color) {
-    if (!initialized) {
-        return -1;
-    }
-
-    int x = position.x;
-    int y = position.y;
-
-    if (x < 0 || x >= width || y < 0 || y >= height) {
-        return -2;
-    }
-
-    pixels[y][x] = {
-        colorToByte(color.r),
-        colorToByte(color.g),
-        colorToByte(color.b)
-    };
-
+int DisplayDriver::flush() {
+    if (!initialized) return -1;
+    if (screenInfo.type == SCREEN_SPI_DISPLAY) return flushSPI();
+    if (screenInfo.type == SCREEN_PARALLEL_DISPLAY) return flushParallel();
     return 0;
 }
 
-int Framebuffer::CLEAR(Color color) {
-    if (width <= 0 || height <= 0) {
-        return -1;
-    }
-
-    uint8_t r = colorToByte(color.r);
-    uint8_t g = colorToByte(color.g);
-    uint8_t b = colorToByte(color.b);
-
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            pixels[y][x] = { r, g, b };
-        }
-    }
-
-    return 0;
-}
-
-int EMPTY_BUFFER(Color FRMBUFFER_CONTENT[], Framebuffer f) {
-    int x = f.WIDTH();
-    int y = f.HEIGHT();
-    for (int i = 0; i < x * y; i++) {
-        Vector2 t;
-
-        t.x = i % x;
-        t.y = i / x;
-
-
-        f.PUSH_PIXEL(t, FRMBUFFER_CONTENT[i]);
-    }
-
-    f.FLUSH();
-    return 0;
-}
-
-int Framebuffer::FLUSH() {
-    if (!initialized) {
-        return -1;
-    }
-
-    switch (screenInfo.type) {
-        case SCREEN_I2C_OLED:
-            return flushI2COLED();
-
-        case SCREEN_I2C_LCD:
-            return flushI2CLCD();
-
-        case SCREEN_SPI_DISPLAY:
-            return flushSPIDisplay();
-
-        case SCREEN_PARALLEL_DISPLAY:
-            return flushParallelDisplay();
-
-        default:
-            return -2;
-    }
-}
-
-void Framebuffer::detectFramebufferSize() {
+void DisplayDriver::detectSize() {
     if (screenInfo.width > 0 && screenInfo.height > 0) {
         width = screenInfo.width;
         height = screenInfo.height;
-        return;
-    }
-
-    switch (screenInfo.type) {
-        case SCREEN_I2C_OLED:
-            detectI2COLEDSize();
-            break;
-        case SCREEN_I2C_LCD:
-            detectI2CLCDSize();
-            break;
-        case SCREEN_SPI_DISPLAY:
-            detectSPIDisplaySize();
-            break;
-        case SCREEN_PARALLEL_DISPLAY:
-            detectParallelDisplaySize();
-            break;
-        default:
-            width = 0;
-            height = 0;
-            break;
+    } else {
+        width = 320;
+        height = 240;
     }
 }
 
-void Framebuffer::detectI2COLEDSize() {
-    width = 128;
-    height = 64;
+int DisplayDriver::flushSPI() {
+    auto sendCmd = [](uint8_t cmd) {
+        GPIO1_DR &= ~(1 << LPSPI4_DC_PIN);
+        while (!(LPSPI4_SR & (1 << 0)));
+        LPSPI4_TDR = cmd;
+    };
+
+    auto sendData = [](uint8_t data) {
+        GPIO1_DR |= (1 << LPSPI4_DC_PIN);
+        while (!(LPSPI4_SR & (1 << 0)));
+        LPSPI4_TDR = data;
+    };
+
+    sendCmd(0x2A); // CASET
+    sendData(0x00); sendData(0x00);
+    sendData((uint8_t)((width - 1) >> 8)); sendData((uint8_t)((width - 1) & 0xFF));
+
+    sendCmd(0x2B); // PASET
+    sendData(0x00); sendData(0x00);
+    sendData((uint8_t)((height - 1) >> 8)); sendData((uint8_t)((height - 1) & 0xFF));
+
+    sendCmd(0x2C); // RAMWR
+    GPIO1_DR |= (1 << LPSPI4_DC_PIN);
+
+    for (unsigned int y = 0; y < height; y++) {
+        for (unsigned int x = 0; x < width; x++) {
+            Pixel p = pixels[y][x];
+            uint16_t color565 = ((p.r & 0xF8) << 8) | ((p.g & 0xFC) << 3) | (p.b >> 3);
+            while (!(LPSPI4_SR & (1 << 0)));
+            LPSPI4_TDR = (uint8_t)(color565 >> 8);
+            while (!(LPSPI4_SR & (1 << 0)));
+            LPSPI4_TDR = (uint8_t)(color565 & 0xFF);
+        }
+    }
+    return 0;
 }
 
-void Framebuffer::detectI2CLCDSize() {
-    width = 16;
-    height = 2;
+int DisplayDriver::flushParallel() {
+    return 0;
 }
 
-void Framebuffer::detectSPIDisplaySize() {
-    width = 320;
-    height = 240;
-}
-
-void Framebuffer::detectParallelDisplaySize() {
-    width = 320;
-    height = 240;
-}
-
-uint8_t Framebuffer::colorToByte(float value) {
-    if (value <= 0.0f) return 0;
-    if (value >= 1.0f) return 255;
-    return (uint8_t)(value * 255.0f);
-}
-
-int Framebuffer::flushI2COLED() { return 0; }
-int Framebuffer::flushI2CLCD() { return -3; }
-int Framebuffer::flushSPIDisplay() { return 0; }
-int Framebuffer::flushParallelDisplay() { return 0; }
-
-extern "C" {
-    void Wire_begin() {}
-    void Wire_beginTransmission(uint8_t address) { (void)address; }
-    uint8_t Wire_endTransmission() { return 1; } // No screen by default
-    bool isPinConnected(int pin) { (void)pin; return false; }
-}
-
-Framebuffer framebuffer;
+DisplayDriver display;

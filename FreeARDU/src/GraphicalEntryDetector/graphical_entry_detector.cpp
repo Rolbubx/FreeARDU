@@ -3,14 +3,8 @@
 // Stubs for bare-metal if Arduino is missing
 #ifdef FREEARDU_BARE_METAL
 extern "C" {
-    void Wire_begin();
-    void Wire_beginTransmission(uint8_t address);
-    uint8_t Wire_endTransmission();
     bool isPinConnected(int pin);
 }
-#define Wire_begin() Wire_begin()
-#define Wire_beginTransmission(addr) Wire_beginTransmission(addr)
-#define Wire_endTransmission() Wire_endTransmission()
 #else
 #include <Arduino.h>
 #include <Wire.h>
@@ -57,79 +51,6 @@ static ScreenDetectionResult makeEmptyResult() {
     return result;
 }
 
-static void addPin(ScreenDetectionResult &result, int pin) {
-    if (pin < 0) {
-        return;
-    }
-
-    if (result.pinCount >= MAX_SCREEN_PINS) {
-        return;
-    }
-
-    for (uint8_t i = 0; i < result.pinCount; i++) {
-        if (result.pins[i] == pin) {
-            return;
-        }
-    }
-
-    result.pins[result.pinCount] = pin;
-    result.pinCount++;
-}
-
-static bool probeI2CAddress(uint8_t address) {
-    Wire_beginTransmission(address);
-    return Wire_endTransmission() == 0;
-}
-
-static ScreenDetectionResult detectI2CScreen() {
-    const uint8_t oledAddresses[] = {
-        0x3C,
-        0x3D
-    };
-
-    const uint8_t lcdAddresses[] = {
-        0x20,
-        0x21,
-        0x22,
-        0x23,
-        0x24,
-        0x25,
-        0x26,
-        0x27,
-        0x38,
-        0x39,
-        0x3A,
-        0x3B,
-        0x3E,
-        0x3F
-    };
-
-    for (uint8_t i = 0; i < sizeof(oledAddresses); i++) {
-        if (probeI2CAddress(oledAddresses[i])) {
-            ScreenDetectionResult res = makeEmptyResult();
-            res.type = SCREEN_I2C_OLED;
-            res.i2cAddress = oledAddresses[i];
-            res.width = 128;
-            res.height = 64;
-            res.canDraw = true;
-            return res;
-        }
-    }
-
-    for (uint8_t i = 0; i < sizeof(lcdAddresses); i++) {
-        if (probeI2CAddress(lcdAddresses[i])) {
-            ScreenDetectionResult res = makeEmptyResult();
-            res.type = SCREEN_I2C_LCD;
-            res.i2cAddress = lcdAddresses[i];
-            res.width = 16;
-            res.height = 2;
-            res.canDraw = true;
-            return res;
-        }
-    }
-
-    return makeEmptyResult();
-}
 
 static ScreenDetectionResult detectSPIScreen() {
     const int possiblePins[] = {5, 6, 7, 8, 9, 10, 11, 12, 13};
@@ -184,10 +105,21 @@ static ScreenDetectionResult detectParallelScreen() {
 }
 
 extern "C" ScreenDetectionResult DETECT_SCRN() {
-    Wire_begin();
-
-    ScreenDetectionResult i2cResult = detectI2CScreen();
-    if (i2cResult.type != SCREEN_NONE) return i2cResult;
+#if defined(FREEARDU_FORCE_SCREEN_TYPE) && FREEARDU_FORCE_SCREEN_TYPE == 1
+    ScreenDetectionResult res = makeEmptyResult();
+    res.type = SCREEN_SPI_DISPLAY;
+    res.width = 320;
+    res.height = 240;
+    res.canDraw = true;
+    return res;
+#elif defined(FREEARDU_FORCE_SCREEN_TYPE) && FREEARDU_FORCE_SCREEN_TYPE == 2
+    ScreenDetectionResult res = makeEmptyResult();
+    res.type = SCREEN_PARALLEL_DISPLAY;
+    res.width = 320;
+    res.height = 240;
+    res.canDraw = true;
+    return res;
+#endif
 
     ScreenDetectionResult spiResult = detectSPIScreen();
     if (spiResult.type != SCREEN_NONE) return spiResult;

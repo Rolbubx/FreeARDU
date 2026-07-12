@@ -10,8 +10,6 @@ extern "C" {
 
 enum ScreenType {
     SCREEN_NONE = 0,
-    SCREEN_I2C_OLED,
-    SCREEN_I2C_LCD,
     SCREEN_SPI_DISPLAY,
     SCREEN_PARALLEL_DISPLAY,
     SCREEN_UNKNOWN

@@ -4,9 +4,41 @@
 
 #include "uart_putc/UART_PUTCHAR.h"
 
-#define PANIC_AUTO_RESTART false // set to true to soft-reboot after a panic instead of halting
+// Enable auto-restart after panic (set to true to auto-reboot)
+#define PANIC_AUTO_RESTART true
+
+// Number of funny phrases for kernel panic
+#define PANIC_PHRASE_COUNT 8
 
 extern "C" void reset_handler(); // defined in startup.S
+
+// Funny phrases to display during kernel panic
+static const char* panic_phrases[PANIC_PHRASE_COUNT] = {
+    "bro i think your board is in depression",
+    "your microcontroller is having a mental breakdown",
+    "the chip is too tired, needs a coffee",
+    "404: board not found (in emotional support)",
+    "your code made the processor cry",
+    "this board has officially given up on life",
+    "recycling old chips... just like your bugs",
+    "the machine is judging your life choices"
+};
+
+// Simple pseudo-random number generator (based on address and error code)
+static uint32_t simple_rand(uint32_t seed) {
+    return ((seed * 1103515245 + 12345) & 0x7fffffff);
+}
+
+// Get a random phrase based on error code
+static const char* get_random_panic_phrase(const char* errorCode) {
+    // Use address of errorCode pointer and length as seed for randomness
+    uint32_t seed = (uint32_t)(uintptr_t)errorCode;
+    for (int i = 0; errorCode[i] != '\0'; i++) {
+        seed += errorCode[i];
+    }
+    uint32_t index = simple_rand(seed) % PANIC_PHRASE_COUNT;
+    return panic_phrases[index];
+}
 
 extern "C" void hard_fault_handler_c(uint32_t* stack_frame) {
     uint32_t pc = stack_frame[6]; // The instruction address that caused the crash
@@ -45,40 +77,47 @@ static void print_panic_banner() {
     uart_puts("\033[1;31m");
     uart_puts("\r\n");
     uart_puts("############################################\r\n");
-    uart_puts("#            KERNEL PANIC                  #\r\n");
+    uart_puts("#               KERNEL PANIC                #\r\n");
     uart_puts("############################################\r\n");
+    uart_puts("\033[0m"); // Reset color
 }
 
 [[noreturn]] void kernel_panic(const char* errorCode, const char* reason) {
-    // Write the error code first as requested: "before the kernel panic, it should just wirte an error (add error codes) like S (software)/code"
+    // Write the error code first as requested
     uart_puts("\r\nERROR: ");
     uart_puts(errorCode);
     uart_puts("\r\n");
 
+    // Print the funny random phrase before the banner
+    uart_puts("\r\n\033[1;33m"); // Yellow color for the funny message
+    uart_puts(get_random_panic_phrase(errorCode));
+    uart_puts("\r\n\033[0m"); // Reset color
+
     print_panic_banner();
+    
+    // Print reason in cyan for visibility
+    uart_puts("\033[1;36m"); // Cyan color
     uart_puts("Reason: ");
     uart_puts(reason);
-    uart_puts("\r\n");
+    uart_puts("\r\n\033[0m"); // Reset color
     
     dump_memory_panic();
     
-    uart_puts("\r\nSystem halted.\r\n");
+    uart_puts("\r\n\033[1;31m"); // Red color
+    uart_puts("System halting... but fear not, auto-restarting in 2 seconds!\r\n");
     uart_puts("\033[0m"); // Reset color
-    // waits 5 seconds
-    for (volatile unsigned int i = 0; i < 50000000; i++) {
-        // restart
-        reset_handler();
+    
+    // Wait for a short delay before restart
+    for (volatile unsigned int i = 0; i < 100000000; i++) {
+        // crude delay
     }
-    #if PANIC_AUTO_RESTART
-        uart_puts("Auto-restart is enabled. Rebooting in 3 seconds...\r\n");
-        for (volatile unsigned int i = 0; i < 200000000; i++) {
-            // crude delay
-        }
-        reset_handler(); // soft reset: jumps back to the very start of boot
-    #endif
-
+    
+    // Restart the system
+    reset_handler();
+    
+    // Should never reach here, but keep the compiler happy
     while (1) {
-        // halt forever
+        // halt forever (should never get here with auto-restart enabled)
     }
 }
 

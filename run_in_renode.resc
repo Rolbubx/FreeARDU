@@ -1,0 +1,20 @@
+# Include the minimal CPU definition
+using "platforms/cpus/imxrt1060_custom.repl"
+
+# The imxrt1060_custom.repl already has RAM regions:
+# - ITCM at 0x0 (512KB)
+# - DTCM at 0x20000000 (512KB)
+# - OCRAM at 0x20200000 (512KB)
+
+# But we need flash at 0x60000000 for our firmware
+flash: Memory.MappedMemory @ sysbus 0x60000000
+    size: 0x100000
+
+# Load ELF - this will put .text/.rodata in flash, .data/.bss in DTCM
+sysbus LoadELF @.pio\build\mimxrt1060_evk_release\firmware.elf
+
+# Start the machine
+start
+
+# Show UART console (LPUART1)
+show @lpuart1

@@ -4,6 +4,10 @@
 #include "../../api/api.h"
 #include "uart_putc/UART_PUTCHAR.h"
 #include "panic/panic.h"
+#include "command/command.h"
+#include "bios/bios.h"
+#include "process/process.h"
+#include "hardware/gpio_bare_metal.h"
 
 
 // ============================================================
@@ -480,106 +484,9 @@ void print_help() {
 }
 
 void handle_command(char* cmd) {
-
-    int len = 0;
-    while (cmd[len]) len++;
-    while (len > 0 && cmd[len - 1] == ' ') {
-        cmd[--len] = '\0';
-    }
-
-    if (string_equals(cmd, "")) {
-        return;
-    }
-    else if (string_equals(cmd, "HELP")) {
-        print_help();
-    }
-    else if (string_equals(cmd, "VERSION")) {
-        print_version();
-    }
-    else if (string_equals(cmd, "UPTIME")) {
-        print_uptime();
-    }
-    else if (string_equals(cmd, "CPUINFO")) {
-        print_cpuinfo();
-    }
-    else if (string_equals(cmd, "MEMSTAT")) {
-        print_memstat();
-    }
-    else if (string_equals(cmd, "DATE")) {
-        uart_puts("Build Date: " __DATE__ "\r\n");
-        uart_puts("Build Time: " __TIME__ "\r\n");
-    }
-    else if (string_equals(cmd, "LS")) {
-        uart_puts("Contents of current directory:\r\n");
-        for (int i = 0; i < MAX_FILES; i++) {
-            if (vfs[i].used && vfs[i].parent_idx == current_dir_idx) {
-                uart_puts(vfs[i].is_folder ? "[DIR] " : "[FILE] ");
-                uart_puts(vfs[i].name);
-                uart_puts("\r\n");
-            }
-        }
-        uart_puts("\r\nSystem Components:\r\n");
-        uart_puts("  /dev/uart1 (LPUART1)\r\n");
-        uart_puts("  /dev/fb0   (Framebuffer)\r\n");
-        uart_puts("  /sys/cpu   (Cortex-M7)\r\n");
-    }
-    else if (string_starts_with(cmd, "ECHO ")) {
-        uart_puts(cmd + 5);
-        uart_puts("\r\n");
-    }
-    else if (string_starts_with(cmd, "CRT ")) {
-        cmd_crt(cmd + 4);
-    }
-    else if (string_starts_with(cmd, "CD ")) {
-        cmd_cd(cmd + 3);
-    }
-    else if (string_starts_with(cmd, "RD ")) {
-        cmd_rd(cmd + 3);
-    }
-    else if (string_equals(cmd, "CLEAR")) {
-        uart_puts("\x1B[2J\x1B[H"); // ANSI clear screen + cursor home
-    }
-    #if DEBUG_COMMANDS_ENABLED
-    else if (string_equals(cmd, "DUMP_MEMORY")) {
-        dump_memory();
-    }
-    else if (string_equals(cmd, "MEMTEST")) {
-        run_memtest();
-    }
-    else if (string_equals(cmd, "SCREEN_INFO")) {
-        print_screen_info();
-    }
-    else if (string_equals(cmd, "STRESS_TEST")) {
-        stress_test_cpu(STRESS_TEST_ITERATIONS);
-    }
-    else if (string_equals(cmd, "RESTART")) {
-        uart_puts("Restarting system...\r\n");
-        reset_handler();
-    }
-    else if (string_equals(cmd, "HALT")) {
-        uart_puts("System halted.\r\n");
-        while(1) { __asm("wfi"); }
-    }
-    else if (string_equals(cmd, "PANIC")) {
-        kernel_panic("S/0xFF", "User-triggered test panic (PANIC command)");
-    }
-    else if (string_equals(cmd, "CAUSE_FAULT")) {
-        uart_puts("Triggering HardFault via illegal access...\r\n");
-        volatile uint32_t* bad_ptr = (volatile uint32_t*)0xFFFFFFF0;
-        uint32_t val = *bad_ptr;
-        (void)val;
-    }
-    #endif
-    else {
-        uart_puts("Unknown command: '");
-        uart_puts(cmd);
-        uart_puts("'. Type HELP for a list of commands.\r\n");
-    }
+    command_execute(cmd);
 }
 
-// ============================================================
-// Boot sequence
-// ============================================================
 void init_display() {
     display.init();
     UG_FillScreen(C_BLACK);
@@ -603,9 +510,11 @@ void display_splash() {
         "Detecting Display Hardware",
         "Initializing Framebuffer",
         "Loading Virtual File System",
+        "Loading BIOS",
+        "Starting Processes",
         "Starting Shell"
     };
-    const int num_steps = 6;
+    const int num_steps = 8;
 
     for (int i = 0; i < num_steps; i++) {
         uart_puts("[ ");
@@ -651,7 +560,9 @@ void display_splash() {
                 }
                 break;
             case 4: vfs_init(); break;
-            case 5: break;
+            case 5: bios_load(); break;
+            case 6: process_init(); break;
+            case 7: break;
         }
 
         // Apply "slow down" if MHz was changed in UpdMode
@@ -715,9 +626,65 @@ void enter_upd_mode() {
 // ============================================================
 // Main OS loop
 // ============================================================
+
+// ============================================================
+// Simulated Process Task Functions
+// ============================================================
+
+static void simulated_task1() {
+    uart_puts("Task1: Running...\r\n");
+    for (volatile int i = 0; i < 100000; i++) {}
+}
+
+static void simulated_task2() {
+    uart_puts("Task2: Running...\r\n");
+    for (volatile int i = 0; i < 100000; i++) {}
+}
+
+static void manager_task() {
+    uart_puts("Manager: Active, monitoring processes...\r\n");
+}
+
 extern "C" int main() {
+    gpio_init();  // Initialize GPIO subsystem first
     uart_init();
     
+    // Initialize command system
+    command_init();
+    
+    // Register commands
+    command_register("HELP", CommandCallbacks::help, true);
+    command_register("VERSION", CommandCallbacks::version, true);
+    command_register("UPTIME", CommandCallbacks::uptime, true);
+    command_register("CPUINFO", CommandCallbacks::cpuinfo, true);
+    command_register("MEMSTAT", CommandCallbacks::memstat, true);
+    command_register("DATE", CommandCallbacks::date, true);
+    command_register("LS", CommandCallbacks::ls, true);
+    command_register("ECHO", CommandCallbacks::echo, true);
+    command_register("CLEAR", CommandCallbacks::clear, true);
+    command_register("CLR", CommandCallbacks::clear, true);
+    command_register("CRT", CommandCallbacks::crt, true);
+    command_register("CD", CommandCallbacks::cd, true);
+    command_register("RD", CommandCallbacks::rd, true);
+    
+    // New commands
+    command_register("AND", CommandCallbacks::and_op, true);
+    command_register("KILL", CommandCallbacks::kill_proc, true);
+    command_register("LST PRC", CommandCallbacks::lst_parc, true);
+    command_register("SYS MSTR", CommandCallbacks::system_start_mgr, true);
+    command_register("BIOS", CommandCallbacks::bios_load, true);
+    
+    #if DEBUG_COMMANDS_ENABLED
+        command_register("DUMP_MEMORY", CommandCallbacks::dump_memory, true);
+        command_register("MEMTEST", CommandCallbacks::memtest, true);
+        command_register("SCREEN_INFO", CommandCallbacks::screen_info, true);
+        command_register("STRESS_TEST", CommandCallbacks::stress_test, true);
+        command_register("RESTART", CommandCallbacks::restart, true);
+        command_register("HALT", CommandCallbacks::halt, true);
+        command_register("PANIC", CommandCallbacks::panic, true);
+        command_register("CAUSE_FAULT", CommandCallbacks::cause_fault, true);
+    #endif
+
     uart_puts("Press 'F' to enter UpdMode...\r\n");
     // Wait a bit for 'F'
     for (volatile int i = 0; i < 2000000; i++) {
@@ -732,47 +699,26 @@ extern "C" int main() {
 
     display_splash();
     panic_init();
+    
+    // Initialize BIOS
+    bios_init();
+    
+    // Initialize processes
+    process_init();
+    process_create("Task1", simulated_task1, 1);
+    process_create("Task2", simulated_task2, 1);
+    register_manager("Manager", manager_task);
 
     char cmd_buffer[CMD_BUFFER_SIZE];
 
     while (1) {
-        if (IsProductionMode == false) {
-            uart_puts("> ");
-            uart_read_line(cmd_buffer, CMD_BUFFER_SIZE);
-            handle_command(cmd_buffer);
-        } else if (IsProductionMode == true) {
-            uart_puts("Free ARDU Production mode");
-
-            // Example API usage
-            if (true == false) {
-                API.pin->pinMode(13, PIN_MODE_OUTPUT);
-                API.pin->digitalWrite(13, PIN_HIGH);
-                API.adc->init(0);
-                API.watchdog->init(5000);
-
-                // waits 5 seconds
-                for (volatile int i = 0; i < 5000000; i++) {
-                    if (uart_data_available()) {
-                        char c = uart_getc();
-                        if (c == 'F' || c == 'f') {
-                            enter_upd_mode();
-                            break;
-                        }
-                    }
-                    API.watchdog->feed();
-                }
-                uart_puts("\x1B[2J\x1B[H");
-                uart_puts("Entering os mode....");
-                // draws a pixel
-                UG_DrawPixel(5, 5, C_WHITE);
-                display.flush();
-            }
-        }
+        uart_puts("> ");
+        uart_read_line(cmd_buffer, CMD_BUFFER_SIZE);
+        command_execute(cmd_buffer);
     }
 
     return 0;
 }
-
 #else
 #include <Arduino.h>
 

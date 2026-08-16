@@ -1,10 +1,9 @@
 #include "graphical_entry_detector.h"
+#include "../hardware/gpio_bare_metal.h"
 
 // Stubs for bare-metal if Arduino is missing
 #ifdef FREEARDU_BARE_METAL
-extern "C" {
-    bool isPinConnected(int pin);
-}
+// Declaration comes from gpio_bare_metal.h (extern "C" linkage)
 #else
 #include <Arduino.h>
 #include <Wire.h>

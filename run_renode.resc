@@ -1,0 +1,19 @@
+# Renode script for i.MX RT1060 EVK
+using "platforms/cpus/imxrt1060_custom.repl"
+
+# Create flash and load firmware
+flash: Memory.MappedMemory @ sysbus 0x60000000
+    size: 0x800000
+
+# Load firmware binary to flash (at reset address)
+flash LoadELF @ "../build/mimxrt1060_evk_release/firmware.bin"
+
+# Create UART terminal on LPUART1 (typically used for console)
+uart0: UART.NXP_LPUART @ sysbus 0x40184000
+    -> cpu@0  # connect to NVIC for IRQs
+
+# Start the emulation
+start
+
+# Show UART console
+show @ uart0

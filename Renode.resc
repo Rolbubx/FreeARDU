@@ -1,0 +1,10 @@
+# Renode script for FreeARDU on i.MX RT1060 EVK
+# Launch commands as specified
+
+mach create "mimxrt1060"
+machine LoadPlatformDescription @platforms/boards/mimxrt1060_evk.repl
+sysbus LoadELF "Path/To/The/Firmware"
+cpu PC `sysbus GetSymbolAddress "reset_handler"`
+showAnalyzer sysbus.lpuart1
+start
+log "Starting emulation..."

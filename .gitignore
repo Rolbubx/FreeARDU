@@ -1,0 +1,38 @@
+# PlatformIO
+.pid
+.piobuild/
+.pio/
+
+# Build artifacts
+*.o
+*.obj
+*.elf
+*.bin
+*.hex
+*.sym
+*.map
+*.a
+*.lib
+*.exe
+*.so
+*.dll
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*.saves
+.DS_Store
+Thumbs.db
+
+# Compiled databases
+.pio/build/**/*.dblite
+
+# OS files
+nul
+*.lnk
+
+# Temporary files
+*.tmp
+*.temp

@@ -1,10 +1,31 @@
 #ifndef FREEARDUREP_PANIC_H
 #define FREEARDUREP_PANIC_H
 
-// Triggers a kernel panic: logs the reason and halts (or resets, depending on config).
-[[noreturn]] void kernel_panic(const char* errorCode, const char* reason);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-// Installs fault handlers (called once at boot, though override via linker is automatic).
+// Reports a fatal condition and never returns.
+#ifdef __cplusplus
+[[noreturn]]
+#else
+__attribute__((noreturn))
+#endif
+void kernel_panic(const char* errorCode, const char* reason);
+
+// Stops the kernel after notifying the stopping hook.
+#ifdef __cplusplus
+[[noreturn]]
+#else
+__attribute__((noreturn))
+#endif
+void kernel_stop();
+
+// Enables the Cortex-M configurable fault handlers.
 void panic_init();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //FREEARDUREP_PANIC_H

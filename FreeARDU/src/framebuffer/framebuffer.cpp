@@ -1,21 +1,8 @@
-#include "framebuffer.h"
-#include "../infos/INFOS.h"
-#include "../uart_putc/UART_PUTCHAR.h"
+#include "Framebuffer.h"
+#include "../Infos/Infos.h"
+#include "../Hardware/GpioBareMetal.h"
 #include <stdint.h>
 #include <stddef.h>
-
-// i.MX RT1060 LPSPI4 Registers
-#define LPSPI4_BASE 0x403AC000
-#define LPSPI4_CR    (*(volatile uint32_t*)(LPSPI4_BASE + 0x10))
-#define LPSPI4_SR    (*(volatile uint32_t*)(LPSPI4_BASE + 0x14))
-#define LPSPI4_CFGR1 (*(volatile uint32_t*)(LPSPI4_BASE + 0x24))
-#define LPSPI4_FCR   (*(volatile uint32_t*)(LPSPI4_BASE + 0x58))
-#define LPSPI4_TDR   (*(volatile uint32_t*)(LPSPI4_BASE + 0x64))
-
-// GPIO Registers
-#define GPIO1_BASE 0x401B8000
-#define GPIO1_DR   (*(volatile uint32_t*)(GPIO1_BASE + 0x00))
-#define GPIO1_GDIR (*(volatile uint32_t*)(GPIO1_BASE + 0x04))
 
 #define MAX_FRAMEBUFFER_WIDTH 320
 #define MAX_FRAMEBUFFER_HEIGHT 240
@@ -29,8 +16,9 @@ static Pixel pixels[MAX_FRAMEBUFFER_HEIGHT][MAX_FRAMEBUFFER_WIDTH];
 DisplayDriver::DisplayDriver() : initialized(false), width(0), height(0) {}
 
 void DisplayDriver::drawPixelCallback(UG_S16 x, UG_S16 y, UG_COLOR c) {
-    if (x >= 0 && (unsigned int)x < display.getWidth() && y >= 0 && (unsigned int)y < display.getHeight()) {
-        pixels[y][x] = {
+    if (x >= 0 && y >= 0 && (unsigned int)x < display.getWidth() &&
+        (unsigned int)y < display.getHeight()) {
+        pixels[(unsigned int)y][(unsigned int)x] = {
             (uint8_t)((c >> 16) & 0xFF),
             (uint8_t)((c >> 8) & 0xFF),
             (uint8_t)(c & 0xFF)
@@ -45,30 +33,24 @@ int DisplayDriver::init() {
         return -1;
     }
 
-    if (screenInfo.type == SCREEN_NONE) {
-        width = 200;
-        height = 100;
-    } else {
-        detectSize();
-    }
+    detectSize();
 
     if (width <= 0 || height <= 0 || width > MAX_FRAMEBUFFER_WIDTH || height > MAX_FRAMEBUFFER_HEIGHT) {
         return -2;
     }
 
-    // Initialize Hardware
     if (screenInfo.type == SCREEN_SPI_DISPLAY) {
-        LPSPI4_CR = 1; // Reset
-        while (LPSPI4_CR & 1);
-        LPSPI4_CFGR1 = 1; // Master
-        LPSPI4_FCR = 0;
-        LPSPI4_CR = (1 << 3) | (1 << 0);
-        
-        GPIO1_GDIR |= (1 << LPSPI4_DC_PIN) | (1 << LPSPI4_RST_PIN);
-        GPIO1_DR &= ~(1 << LPSPI4_RST_PIN);
-        for (volatile int i = 0; i < 1000000; i++);
-        GPIO1_DR |= (1 << LPSPI4_RST_PIN);
-        for (volatile int i = 0; i < 1000000; i++);
+        gpio_init();
+        gpio_configure_output(screenInfo.csPin, true);
+        gpio_configure_output(screenInfo.dcPin, true);
+        gpio_configure_output(screenInfo.resetPin, true);
+        gpio_configure_output(screenInfo.sckPin, false);
+        gpio_configure_output(screenInfo.mosiPin, false);
+        gpio_write(screenInfo.resetPin, false);
+        delay_cycles(200000);
+        gpio_write(screenInfo.resetPin, true);
+        delay_cycles(1200000);
+        initIli9341();
     }
 
     UG_Init(&gui, drawPixelCallback, (UG_S16)width, (UG_S16)height);
@@ -96,44 +78,98 @@ void DisplayDriver::detectSize() {
 }
 
 int DisplayDriver::flushSPI() {
-    auto sendCmd = [](uint8_t cmd) {
-        GPIO1_DR &= ~(1 << LPSPI4_DC_PIN);
-        while (!(LPSPI4_SR & (1 << 0)));
-        LPSPI4_TDR = cmd;
-    };
+    writeCommand(0x2A);
+    writeData(0x00); writeData(0x00);
+    writeData((uint8_t)((width - 1) >> 8)); writeData((uint8_t)(width - 1));
 
-    auto sendData = [](uint8_t data) {
-        GPIO1_DR |= (1 << LPSPI4_DC_PIN);
-        while (!(LPSPI4_SR & (1 << 0)));
-        LPSPI4_TDR = data;
-    };
+    writeCommand(0x2B);
+    writeData(0x00); writeData(0x00);
+    writeData((uint8_t)((height - 1) >> 8)); writeData((uint8_t)(height - 1));
 
-    sendCmd(0x2A); // CASET
-    sendData(0x00); sendData(0x00);
-    sendData((uint8_t)((width - 1) >> 8)); sendData((uint8_t)((width - 1) & 0xFF));
-
-    sendCmd(0x2B); // PASET
-    sendData(0x00); sendData(0x00);
-    sendData((uint8_t)((height - 1) >> 8)); sendData((uint8_t)((height - 1) & 0xFF));
-
-    sendCmd(0x2C); // RAMWR
-    GPIO1_DR |= (1 << LPSPI4_DC_PIN);
+    gpio_write(screenInfo.csPin, false);
+    gpio_write(screenInfo.dcPin, true);
+    writeSpiByte(0x2C);
 
     for (unsigned int y = 0; y < height; y++) {
         for (unsigned int x = 0; x < width; x++) {
             Pixel p = pixels[y][x];
             uint16_t color565 = ((p.r & 0xF8) << 8) | ((p.g & 0xFC) << 3) | (p.b >> 3);
-            while (!(LPSPI4_SR & (1 << 0)));
-            LPSPI4_TDR = (uint8_t)(color565 >> 8);
-            while (!(LPSPI4_SR & (1 << 0)));
-            LPSPI4_TDR = (uint8_t)(color565 & 0xFF);
+            writeSpiByte((uint8_t)(color565 >> 8));
+            writeSpiByte((uint8_t)color565);
         }
     }
+    gpio_write(screenInfo.csPin, true);
     return 0;
 }
 
 int DisplayDriver::flushParallel() {
-    return 0;
+    return -1;
+}
+
+void DisplayDriver::delay_cycles(uint32_t cycles) {
+    while (cycles-- != 0) {
+        __asm__ volatile ("nop");
+    }
+}
+
+void DisplayDriver::writeSpiByte(uint8_t value) {
+    for (uint8_t bit = 0x80; bit != 0; bit >>= 1) {
+        gpio_write(screenInfo.mosiPin, (value & bit) != 0);
+        gpio_write(screenInfo.sckPin, true);
+        gpio_write(screenInfo.sckPin, false);
+    }
+}
+
+void DisplayDriver::writeCommand(uint8_t command) {
+    gpio_write(screenInfo.csPin, false);
+    gpio_write(screenInfo.dcPin, false);
+    writeSpiByte(command);
+    gpio_write(screenInfo.csPin, true);
+}
+
+void DisplayDriver::writeData(uint8_t data) {
+    gpio_write(screenInfo.csPin, false);
+    gpio_write(screenInfo.dcPin, true);
+    writeSpiByte(data);
+    gpio_write(screenInfo.csPin, true);
+}
+
+void DisplayDriver::initIli9341() {
+    writeCommand(0x01);
+    delay_cycles(1200000);
+    writeCommand(0x11);
+    delay_cycles(1200000);
+    writeCommand(0x3A); writeData(0x55);
+    writeCommand(0x36); writeData(0x48);
+    writeCommand(0xB1); writeData(0x00); writeData(0x1B);
+    writeCommand(0xC0); writeData(0x23);
+    writeCommand(0xC1); writeData(0x10);
+    writeCommand(0xC5); writeData(0x3E); writeData(0x28);
+    writeCommand(0xC7); writeData(0x86);
+    writeCommand(0xE0);
+    const uint8_t positive[] = {0x0F, 0x31, 0x2B, 0x0C, 0x0E, 0x08, 0x4E, 0xF1, 0x37, 0x07, 0x10, 0x03, 0x0E, 0x09, 0x00};
+    for (uint8_t i = 0; i < sizeof(positive); i++) writeData(positive[i]);
+    writeCommand(0xE1);
+    const uint8_t negative[] = {0x00, 0x0E, 0x14, 0x03, 0x11, 0x07, 0x31, 0xC1, 0x48, 0x08, 0x0F, 0x0C, 0x31, 0x36, 0x0F};
+    for (uint8_t i = 0; i < sizeof(negative); i++) writeData(negative[i]);
+    writeCommand(0x29);
+    delay_cycles(1200000);
 }
 
 DisplayDriver display;
+
+extern "C" int display_init(void) {
+    return display.init();
+}
+
+extern "C" int display_flush(void) {
+    return display.flush();
+}
+
+extern "C" int display_get_width(void) {
+    return display.getWidth();
+}
+
+extern "C" int display_get_height(void) {
+    return display.getHeight();
+}

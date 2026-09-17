@@ -1,4 +1,4 @@
-#include "uart_putc/UART_PUTCHAR.h"
+#include "UartPutchar.h"
 
 #define LPUART1_BASE 0x40184000
 #define LPUART1_STAT (*(volatile unsigned int*)(LPUART1_BASE + 0x14))

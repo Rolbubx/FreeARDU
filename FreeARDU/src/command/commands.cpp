@@ -1,11 +1,11 @@
-#include "command.h"
-#include "../uart_putc/UART_PUTCHAR.h"
-#include "../bios/bios.h"
-#include "../process/process.h"
-#include "../api/api.h"
-#include "../framebuffer/framebuffer.h"
-#include "../GraphicalEntryDetector/graphical_entry_detector.h"
-#include "../panic/panic.h"
+#include "Command.h"
+#include "../Uart/UartPutchar.h"
+#include "../Bios/Bios.h"
+#include "../Process/Process.h"
+#include "../Api/Api.h"
+#include "../Framebuffer/Framebuffer.h"
+#include "../DisplayDetector/DisplayDetector.h"
+#include "../Panic/Panic.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -45,10 +45,10 @@ void CommandCallbacks::ls(const char* args) {
 void CommandCallbacks::echo(const char* args) { if(args) { uart_puts(args); uart_puts("\r\n"); } }
 void CommandCallbacks::clear(const char* args) { (void)args; uart_puts("\x1B[2J\x1B[H"); }
 
-// VFS functions from main.cpp
-extern void cmd_crt(char* args);
-extern void cmd_cd(char* args);
-extern void cmd_rd(char* args);
+// VFS functions from the C entry point
+extern "C" void cmd_crt(char* args);
+extern "C" void cmd_cd(char* args);
+extern "C" void cmd_rd(char* args);
 
 void CommandCallbacks::crt(const char* args) { cmd_crt(const_cast<char*>(args)); }
 void CommandCallbacks::cd(const char* args) { cmd_cd(const_cast<char*>(args)); }
@@ -59,7 +59,11 @@ void CommandCallbacks::memtest(const char* args) { (void)args; uart_puts("Pass\r
 void CommandCallbacks::screen_info(const char* args) { (void)args; uart_puts("Screen OK\r\n"); }
 void CommandCallbacks::stress_test(const char* args) { (void)args; uart_puts("Done\r\n"); }
 void CommandCallbacks::restart(const char* args) { (void)args; uart_puts("Restarting\r\n"); }
-void CommandCallbacks::halt(const char* args) { (void)args; uart_puts("Halted\r\n"); }
+void CommandCallbacks::halt(const char* args) {
+    (void)args;
+    uart_puts("Halted\r\n");
+    kernel_stop();
+}
 
 void CommandCallbacks::panic(const char* args) {
     (void)args;
@@ -69,10 +73,18 @@ void CommandCallbacks::panic(const char* args) {
 
 void CommandCallbacks::cause_fault(const char* args) {
     (void)args;
-    uart_puts("Attempting to trigger HardFault by dereferencing null pointer...\r\n");
-    // This will cause a hard fault on real hardware
-    int* null_ptr = (int*)0x00000000;
-    *null_ptr = 0xDEADBEEF;
+    uart_puts("Injecting a deliberate UsageFault to verify fault handlers...\r\n");
+
+    // A null-pointer store is not guaranteed to fault on Cortex-M because the
+    // address 0x00000000 may still be mapped or silently handled by the target.
+    // Explicitly generate an undefined instruction, which always raises a
+    // UsageFault on Cortex-M and is then reported by usage_fault_handler_c().
+    __asm__ volatile ("udf #0" ::: "memory");
+
+    // If the fault is not handled, keep the CPU here instead of continuing.
+    for (;;) {
+        __asm__ volatile ("wfi" ::: "memory");
+    }
 }
 
 void CommandCallbacks::and_op(const char* args) {
@@ -140,4 +152,35 @@ void CommandCallbacks::bios_get(const char* args) {
 void CommandCallbacks::bios_cfg(const char* args) {
     (void)args;
     bios_print_config();
+}
+
+extern "C" {
+void cmd_help(const char* args) { CommandCallbacks::help(args); }
+void cmd_version(const char* args) { CommandCallbacks::version(args); }
+void cmd_uptime(const char* args) { CommandCallbacks::uptime(args); }
+void cmd_cpuinfo(const char* args) { CommandCallbacks::cpuinfo(args); }
+void cmd_memstat(const char* args) { CommandCallbacks::memstat(args); }
+void cmd_date(const char* args) { CommandCallbacks::date(args); }
+void cmd_ls(const char* args) { CommandCallbacks::ls(args); }
+void cmd_echo(const char* args) { CommandCallbacks::echo(args); }
+void cmd_clear(const char* args) { CommandCallbacks::clear(args); }
+void cmd_crt_callback(const char* args) { CommandCallbacks::crt(args); }
+void cmd_cd_callback(const char* args) { CommandCallbacks::cd(args); }
+void cmd_rd_callback(const char* args) { CommandCallbacks::rd(args); }
+void cmd_dump_memory(const char* args) { CommandCallbacks::dump_memory(args); }
+void cmd_memtest(const char* args) { CommandCallbacks::memtest(args); }
+void cmd_screen_info(const char* args) { CommandCallbacks::screen_info(args); }
+void cmd_stress_test(const char* args) { CommandCallbacks::stress_test(args); }
+void cmd_restart(const char* args) { CommandCallbacks::restart(args); }
+void cmd_halt(const char* args) { CommandCallbacks::halt(args); }
+void cmd_panic(const char* args) { CommandCallbacks::panic(args); }
+void cmd_cause_fault(const char* args) { CommandCallbacks::cause_fault(args); }
+void cmd_and(const char* args) { CommandCallbacks::and_op(args); }
+void cmd_kill_proc(const char* args) { CommandCallbacks::kill_proc(args); }
+void cmd_list_processes(const char* args) { CommandCallbacks::lst_parc(args); }
+void cmd_system_start_manager(const char* args) { CommandCallbacks::system_start_mgr(args); }
+void cmd_bios_load(const char* args) { CommandCallbacks::bios_load(args); }
+void cmd_bios_set_param(const char* args) { CommandCallbacks::bios_set_param(args); }
+void cmd_bios_get(const char* args) { CommandCallbacks::bios_get(args); }
+void cmd_bios_config(const char* args) { CommandCallbacks::bios_cfg(args); }
 }

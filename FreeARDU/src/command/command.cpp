@@ -1,5 +1,5 @@
-#include "command.h"
-#include "../uart_putc/UART_PUTCHAR.h"
+#include "Command.h"
+#include "../Uart/UartPutchar.h"
 #include <string.h>
 
 // Maximum number of commands

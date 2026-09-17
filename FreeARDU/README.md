@@ -13,7 +13,7 @@ This project is licensed under the MIT License. See the [LICENSE/LICENSE.txt](LI
 
 ## Features
 
-- Custom Bare-Metal Startup (`startup.S`)
+- Custom Bare-Metal Startup (`OnStart/Boot/Startup.S`)
 - Linker script for i.MX RT1060
 - Framebuffer support with automatic screen detection
 - Bare-metal HAL stubs

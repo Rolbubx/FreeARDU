@@ -108,6 +108,20 @@ SECTIONS
     __bss_end__ = _ebss;
   } > DTCM
 
+  .sandbox (NOLOAD) :
+  {
+    . = ALIGN(64K);
+    *(.sandbox)
+    . = ALIGN(64K);
+  } > OCRAM
+
+  .sandbox_stack (NOLOAD) :
+  {
+    . = ALIGN(16K);
+    *(.sandbox_stack)
+    . = ALIGN(16K);
+  } > OCRAM
+
   .heap :
   {
     . = ALIGN(8);

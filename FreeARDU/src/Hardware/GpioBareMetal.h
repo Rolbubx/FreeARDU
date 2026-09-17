@@ -12,6 +12,9 @@ extern "C" {
 // Initialize GPIO system for pin detection
 void gpio_init(void);
 
+void gpio_configure_output(int pin, bool initial_high);
+void gpio_write(int pin, bool high);
+
 // Check if a pin is connected (has external pull-up or connected signal)
 // Uses internal pull-down resistor - if pin reads high, something is pulling it up
 bool isPinConnected(int pin);

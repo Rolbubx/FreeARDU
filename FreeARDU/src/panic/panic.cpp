@@ -1,141 +1,167 @@
-#include "panic/panic.h"
+#include "Panic.h"
 
 #include <cstdint>
 
-#include "uart_putc/UART_PUTCHAR.h"
+#include "../Memory/memory.h"
+#include "../Uart/UartPutchar.h"
 
-// Enable auto-restart after panic (set to true to auto-reboot)
-#define PANIC_AUTO_RESTART true
+#ifndef PANIC_AUTO_RESTART
+#define PANIC_AUTO_RESTART false
+#endif
 
-// Number of funny phrases for kernel panic
-#define PANIC_PHRASE_COUNT 8
+namespace {
 
-extern "C" void reset_handler(); // defined in startup.S
+constexpr uint32_t SCB_SHCSR = 0xE000ED24u;
+constexpr uint32_t SCB_CFSR  = 0xE000ED28u;
+constexpr uint32_t SCB_HFSR  = 0xE000ED2Cu;
+constexpr uint32_t SCB_DFSR  = 0xE000ED30u;
+constexpr uint32_t SCB_MMFAR = 0xE000ED34u;
+constexpr uint32_t SCB_BFAR  = 0xE000ED38u;
+constexpr uint32_t SCB_AFSR  = 0xE000ED3Cu;
+constexpr uint32_t SCB_AIRCR = 0xE000ED0Cu;
 
-// Funny phrases to display during kernel panic
-static const char* panic_phrases[PANIC_PHRASE_COUNT] = {
-    "bro i think your board is in depression",
-    "your microcontroller is having a mental breakdown",
-    "the chip is too tired, needs a coffee",
-    "404: board not found (in emotional support)",
-    "your code made the processor cry",
-    "this board has officially given up on life",
-    "recycling old chips... just like your bugs",
-    "the machine is judging your life choices"
-};
+constexpr uint32_t SHCSR_MEMFAULTENA = 1u << 16;
+constexpr uint32_t SHCSR_BUSFAULTENA = 1u << 17;
+constexpr uint32_t SHCSR_USGFAULTENA = 1u << 18;
+constexpr uint32_t AIRCR_VECTKEY     = 0x5FAu << 16;
+constexpr uint32_t AIRCR_SYSRESETREQ = 1u << 2;
 
-// Simple pseudo-random number generator (based on address and error code)
-static uint32_t simple_rand(uint32_t seed) {
-    return ((seed * 1103515245 + 12345) & 0x7fffffff);
+volatile uint32_t* reg32(uint32_t address)
+{
+    return reinterpret_cast<volatile uint32_t*>(address);
 }
 
-// Get a random phrase based on error code
-static const char* get_random_panic_phrase(const char* errorCode) {
-    // Use address of errorCode pointer and length as seed for randomness
-    uint32_t seed = (uint32_t)(uintptr_t)errorCode;
-    for (int i = 0; errorCode[i] != '\0'; i++) {
-        seed += errorCode[i];
+volatile bool panic_active = false;
+
+void print_label_hex(const char* label, uint32_t value)
+{
+    uart_puts(label);
+    uart_print_hex(value);
+    uart_puts("\r\n");
+}
+
+void print_fault_frame(const uint32_t* frame)
+{
+    if (frame == nullptr) {
+        uart_puts("Stacked frame: unavailable\r\n");
+        return;
     }
-    uint32_t index = simple_rand(seed) % PANIC_PHRASE_COUNT;
-    return panic_phrases[index];
+
+    uart_puts("Stacked registers:\r\n");
+    print_label_hex("  R0  = ", frame[0]);
+    print_label_hex("  R1  = ", frame[1]);
+    print_label_hex("  R2  = ", frame[2]);
+    print_label_hex("  R3  = ", frame[3]);
+    print_label_hex("  R12 = ", frame[4]);
+    print_label_hex("  LR  = ", frame[5]);
+    print_label_hex("  PC  = ", frame[6]);
+    print_label_hex("  xPSR= ", frame[7]);
 }
 
-extern "C" void hard_fault_handler_c(uint32_t* stack_frame) {
-    uint32_t pc = stack_frame[6]; // The instruction address that caused the crash
-
-    // Write the error code first
-    uart_puts("\r\nERROR: S/0x01\r\n");
-    
-    // Red color for the address info
-    uart_puts("\033[1;31m");
-    uart_puts("FAULT AT ADDRESS: ");
-    uart_print_hex(pc);
-    uart_puts("\r\n");
-
-    kernel_panic("S/0x01", "Hard Fault (unhandled exception or invalid memory access)");
+void disable_mpu_for_fault()
+{
+    *reg32(0xE000ED94u) = 0u;
+    __asm__ volatile ("dsb; isb" ::: "memory");
 }
 
-extern "C" {
-    extern unsigned int _sdata, _edata;
-    extern unsigned int _sbss, _ebss;
-    extern unsigned int _sheap, _eheap;
-    extern unsigned int _estack;
-}
+[[noreturn]] void reset_or_halt()
+{
+    kernel_mark_stopping();
 
-static void dump_memory_panic() {
-    uart_puts("\r\n--- Memory Dump ---\r\n");
-    uart_puts(".data: "); uart_print_hex((unsigned int)&_sdata); uart_puts(" - "); uart_print_hex((unsigned int)&_edata); uart_puts("\r\n");
-    uart_puts(".bss : "); uart_print_hex((unsigned int)&_sbss); uart_puts(" - "); uart_print_hex((unsigned int)&_ebss); uart_puts("\r\n");
-    uart_puts("heap : "); uart_print_hex((unsigned int)&_sheap); uart_puts(" - "); uart_print_hex((unsigned int)&_eheap); uart_puts("\r\n");
-    uart_puts("stack: top at "); uart_print_hex((unsigned int)&_estack); uart_puts("\r\n");
-    uart_puts("-------------------\r\n");
-}
+#if PANIC_AUTO_RESTART
+    *reg32(SCB_AIRCR) = AIRCR_VECTKEY | AIRCR_SYSRESETREQ;
+    __asm__ volatile ("dsb" ::: "memory");
+#endif
 
-
-static void print_panic_banner() {
-    // Red color using ANSI escape codes: \033[1;31m
-    uart_puts("\033[1;31m");
-    uart_puts("\r\n");
-    uart_puts("############################################\r\n");
-    uart_puts("#               KERNEL PANIC                #\r\n");
-    uart_puts("############################################\r\n");
-    uart_puts("\033[0m"); // Reset color
-}
-
-[[noreturn]] void kernel_panic(const char* errorCode, const char* reason) {
-    // Write the error code first as requested
-    uart_puts("\r\nERROR: ");
-    uart_puts(errorCode);
-    uart_puts("\r\n");
-
-    // Print the funny random phrase before the banner
-    uart_puts("\r\n\033[1;33m"); // Yellow color for the funny message
-    uart_puts(get_random_panic_phrase(errorCode));
-    uart_puts("\r\n\033[0m"); // Reset color
-
-    print_panic_banner();
-    
-    // Print reason in cyan for visibility
-    uart_puts("\033[1;36m"); // Cyan color
-    uart_puts("Reason: ");
-    uart_puts(reason);
-    uart_puts("\r\n\033[0m"); // Reset color
-    
-    dump_memory_panic();
-    
-    uart_puts("\r\n\033[1;31m"); // Red color
-    uart_puts("System halting... but fear not, auto-restarting in 2 seconds!\r\n");
-    uart_puts("\033[0m"); // Reset color
-    
-    // Wait for a short delay before restart
-    for (volatile unsigned int i = 0; i < 100000000; i++) {
-        // crude delay
-    }
-    
-    // Restart the system
-    reset_handler();
-    
-    // Should never reach here, but keep the compiler happy
-    while (1) {
-        // halt forever (should never get here with auto-restart enabled)
+    for (;;) {
+        __asm__ volatile ("wfi");
     }
 }
 
+void report_fault(const char* code,
+                  const char* reason,
+                  uint32_t* frame)
+{
+    if (panic_active) {
+        reset_or_halt();
+    }
+    panic_active = true;
 
-extern "C" void MemManage_Handler() {
-    kernel_panic("S/0x02", "Memory Management Fault (invalid memory access, MPU violation)");
+    uart_puts("\r\n=== FREEARDU FAULT ===\r\n");
+    uart_puts("Code: ");
+    uart_puts(code != nullptr ? code : "UNKNOWN");
+    uart_puts("\r\nReason: ");
+    uart_puts(reason != nullptr ? reason : "unspecified");
+    uart_puts("\r\n");
+
+    print_fault_frame(frame);
+    print_label_hex("CFSR : ", *reg32(SCB_CFSR));
+    print_label_hex("HFSR : ", *reg32(SCB_HFSR));
+    print_label_hex("DFSR : ", *reg32(SCB_DFSR));
+    print_label_hex("MMFAR: ", *reg32(SCB_MMFAR));
+    print_label_hex("BFAR : ", *reg32(SCB_BFAR));
+    print_label_hex("AFSR : ", *reg32(SCB_AFSR));
+    uart_puts("=======================\r\n");
+
+    if (sandbox_fault_recover(frame) != 0) {
+        uart_puts("Sandbox execution aborted; firmware continuing.\r\n");
+        return;
+    }
+
+    reset_or_halt();
 }
 
-extern "C" void BusFault_Handler() {
-    kernel_panic("S/0x03", "Bus Fault (invalid bus access, e.g. unmapped memory)");
+} // namespace
+
+extern "C" void hard_fault_handler_c(uint32_t* stack_frame)
+{
+    disable_mpu_for_fault();
+    report_fault("HARDFAULT", "Unhandled exception or escalated configurable fault",
+                 stack_frame);
 }
 
-extern "C" void UsageFault_Handler() {
-    kernel_panic("S/0x04", "Usage Fault (invalid instruction or illegal state)");
+extern "C" void hard_fault_handler_segfault(uint32_t* stack_frame)
+{
+    disable_mpu_for_fault();
+    report_fault("MEMORY", "Illegal memory access", stack_frame);
 }
 
-void panic_init() {
-    // No-op for now: handlers are installed automatically at link time
-    // by overriding the weak symbols from startup.S.
-    // This function exists as a hook point for future watchdog setup, etc.
+extern "C" void memmanage_handler_c(uint32_t* stack_frame)
+{
+    disable_mpu_for_fault();
+    report_fault("MEMMANAGE", "MPU memory protection violation", stack_frame);
+}
+
+extern "C" void bus_fault_handler_c(uint32_t* stack_frame)
+{
+    disable_mpu_for_fault();
+    report_fault("BUSFAULT", "Bus access violation", stack_frame);
+}
+
+extern "C" void usage_fault_handler_c(uint32_t* stack_frame)
+{
+    disable_mpu_for_fault();
+    report_fault("USAGEFAULT", "Invalid instruction or processor state", stack_frame);
+}
+
+[[noreturn]] void kernel_panic(const char* errorCode, const char* reason)
+{
+    report_fault(errorCode, reason, nullptr);
+    reset_or_halt();
+}
+
+[[noreturn]] void kernel_stop()
+{
+    reset_or_halt();
+}
+
+void panic_init()
+{
+    /*
+     * Route configurable faults to their dedicated handlers instead of
+     * escalating them to HardFault. HardFault remains the final fallback.
+     */
+    *reg32(SCB_SHCSR) |= SHCSR_MEMFAULTENA |
+                         SHCSR_BUSFAULTENA |
+                         SHCSR_USGFAULTENA;
 }

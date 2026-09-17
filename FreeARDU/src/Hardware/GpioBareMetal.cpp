@@ -1,4 +1,4 @@
-#include "gpio_bare_metal.h"
+#include "GpioBareMetal.h"
 #include <stdint.h>
 
 #ifdef FREEARDU_BARE_METAL
@@ -8,16 +8,11 @@
 // ============================================================
 
 // CCM (Clock Control Module) - for enabling GPIO clocks
-#define CCM_BASE_ADDR       0x401F4000
-#define CCM_CCGR1           (*(volatile uint32_t*)(CCM_BASE_ADDR + 0x0848))  // GPIO1-2 clock gate
-#define CCM_CCGR2           (*(volatile uint32_t*)(CCM_BASE_ADDR + 0x084C))  // GPIO3-4 clock gate
-#define CCM_CCGR3           (*(volatile uint32_t*)(CCM_BASE_ADDR + 0x0850))  // GPIO5 clock gate
+#define CCM_BASE_ADDR       0x400FC000
+#define CCM_CCGR1           (*(volatile uint32_t*)(CCM_BASE_ADDR + 0x006C))
 
 // IOMUXC - for pin muxing
 #define IOMUXC_BASE_ADDR    0x401F8000
-#define IOMUXC_GPR1         (*(volatile uint32_t*)(IOMUXC_BASE_ADDR + 0x0040))
-#define IOMUXC_GPR10        (*(volatile uint32_t*)(IOMUXC_BASE_ADDR + 0x0078))
-
 // GPIO register bases
 #define GPIO1_BASE_ADDR     0x401B8000
 #define GPIO2_BASE_ADDR     0x401BC000
@@ -29,9 +24,6 @@
 #define GPIO_IOx_GDR_OFFSET 0x00  // GDIR (same offset)
 
 // Pad Control register base (per GPIO bank)
-#define IOMUXC_SW_PAD_CTL_GPIO1_BASE  0x0380
-#define IOMUXC_SW_MUX_CTL_GPIO1_BASE  0x0240
-
 // ============================================================
 // GPIO Register Access Macros
 // ============================================================
@@ -66,7 +58,7 @@ static const PinInfo pinInfo[] = {
     { &GPIO1_GDIR, &GPIO1_PDIR, (1U <<  0) },  // Pin 0
     { &GPIO1_GDIR, &GPIO1_PDIR, (1U <<  1) },  // Pin 1
     { &GPIO1_GDIR, &GPIO1_PDIR, (1U <<  2) },  // Pin 2
-    { &GPIO1_GDIR, &GPIO1_GDIR, (1U <<  3) },  // Pin 3
+    { &GPIO1_GDIR, &GPIO1_PDIR, (1U <<  3) },  // Pin 3
     { &GPIO1_GDIR, &GPIO1_PDIR, (1U <<  4) },  // Pin 4
     { &GPIO1_GDIR, &GPIO1_PDIR, (1U <<  5) },  // Pin 5
     { &GPIO1_GDIR, &GPIO1_PDIR, (1U <<  6) },  // Pin 6
@@ -98,8 +90,7 @@ static void configure_gpio_input_pull_down(int arduino_pin) {
     const PinInfo* info = &pinInfo[arduino_pin];
     
     // 1. Configure as GPIO (ALT5 = GPIO) via IOMUXC mux control
-    // For GPIO1: SW_MUX_CTL_GPIO1_IO_XX registers at offset 0x0240 + (pin * 4)
-    // For GPIO2: SW_MUX_CTL_GPIO2_IO_XX registers at offset 0x0280 + (pin * 4)
+    // GPIO1 pins used by the SPI configuration are GPIO_AD_B0_00..15.
     
     volatile uint32_t* mux_ctrl;
     uint32_t gpio_pin;
@@ -107,7 +98,7 @@ static void configure_gpio_input_pull_down(int arduino_pin) {
     if (info->pdir_reg == &GPIO1_PDIR) {
         // GPIO1: pins 0-31
         gpio_pin = __builtin_ctz(info->mask);
-        mux_ctrl = (volatile uint32_t*)(IOMUXC_BASE_ADDR + IOMUXC_SW_MUX_CTL_GPIO1_BASE + (gpio_pin * 4));
+        mux_ctrl = (volatile uint32_t*)(IOMUXC_BASE_ADDR + 0x80BC + (gpio_pin * 4));
     } else {
         // GPIO2: pins 0-31
         gpio_pin = __builtin_ctz(info->mask);
@@ -118,16 +109,38 @@ static void configure_gpio_input_pull_down(int arduino_pin) {
     *mux_ctrl = 5;  // IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO00_ALT5 = GPIO1_IO00
     
     // 2. Configure pad control for pull-down
-    // SW_PAD_CTL_GPIO1_IO_XX registers at offset 0x0380 + (pin * 4)
     volatile uint32_t* pad_ctrl;
     if (info->pdir_reg == &GPIO1_PDIR) {
-        pad_ctrl = (volatile uint32_t*)(IOMUXC_BASE_ADDR + IOMUXC_SW_PAD_CTL_GPIO1_BASE + (gpio_pin * 4));
+        pad_ctrl = (volatile uint32_t*)(IOMUXC_BASE_ADDR + 0x82AC + (gpio_pin * 4));
     } else {
         pad_ctrl = (volatile uint32_t*)(IOMUXC_BASE_ADDR + 0x03C0 + (gpio_pin * 4));
     }
     
-    // Set pull-down (0x0A = 100K pull-down, pull/keeper enabled)
-    *pad_ctrl = 0x00A0;  // PUS(2:0) = 011 -> 100K pull-down
+    *pad_ctrl = 0x00A0;
+}
+
+static void configure_gpio_output_pin(int arduino_pin, bool initial_high) {
+    if (arduino_pin < 0 || arduino_pin >= (int)(sizeof(pinInfo) / sizeof(pinInfo[0]))) {
+        return;
+    }
+
+    const PinInfo* info = &pinInfo[arduino_pin];
+    uint32_t gpio_pin = __builtin_ctz(info->mask);
+    uint32_t mux_base = info->pdir_reg == &GPIO1_PDIR ? 0x80BC : 0x811C;
+    uint32_t pad_base = info->pdir_reg == &GPIO1_PDIR ? 0x82AC : 0x832C;
+
+    // GPIO1 and GPIO2 pad mux registers are contiguous in the RT1060 IOMUXC.
+    volatile uint32_t* mux = (volatile uint32_t*)(IOMUXC_BASE_ADDR + mux_base + gpio_pin * 4);
+    volatile uint32_t* pad = (volatile uint32_t*)(IOMUXC_BASE_ADDR + pad_base + gpio_pin * 4);
+    *mux = 5;
+    *pad = 0x10B0;
+
+    if (initial_high) {
+        *info->pdir_reg |= info->mask;
+    } else {
+        *info->pdir_reg &= ~info->mask;
+    }
+    *info->gdir_reg |= info->mask;
 }
 
 // ============================================================
@@ -135,15 +148,30 @@ static void configure_gpio_input_pull_down(int arduino_pin) {
 // ============================================================
 
 void gpio_init(void) {
-    // Enable GPIO1 and GPIO2 clocks via CCM
-    // CCGR1: CG13 = GPIO1, CG14 = GPIO2, CG15 = GPIO3
-    // Set to 0x3 (always on) for both GPIO1 and GPIO2
-    CCM_CCGR1 |= (3 << 12) | (3 << 14);  // Enable GPIO1 & GPIO2
+    // CCGR1 CG13 and CG14 gate GPIO1 and GPIO2.
+    CCM_CCGR1 |= (3U << 26) | (3U << 28);
     
     // Configure all pins we'll be checking as inputs with pull-down
     // This prevents floating inputs from giving false readings
     for (int i = 0; i < (int)(sizeof(pinInfo)/sizeof(pinInfo[0])); i++) {
         configure_gpio_input_pull_down(i);
+    }
+
+}
+
+void gpio_configure_output(int pin, bool initial_high) {
+    configure_gpio_output_pin(pin, initial_high);
+}
+
+void gpio_write(int pin, bool high) {
+    if (pin < 0 || pin >= (int)(sizeof(pinInfo) / sizeof(pinInfo[0]))) {
+        return;
+    }
+    const PinInfo* info = &pinInfo[pin];
+    if (high) {
+        *info->pdir_reg |= info->mask;
+    } else {
+        *info->pdir_reg &= ~info->mask;
     }
 }
 

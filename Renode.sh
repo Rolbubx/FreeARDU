@@ -71,7 +71,7 @@ sysbus LoadELF "$FIRMWARE_PATH"
 cpu PC \`sysbus GetSymbolAddress "reset_handler"\`
 showAnalyzer sysbus.lpuart1
 start
-print "Starting emulation..."
+log "Starting emulation..."
 RESC
 
 # Launch Renode with the RESC file

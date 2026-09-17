@@ -2,8 +2,8 @@
 #define DISPLAY_DRIVER_H
 
 #include <stdint.h>
-#include "../GraphicalEntryDetector/graphical_entry_detector.h"
-#include "../third_party/ugui/ugui.h"
+#include "../DisplayDetector/DisplayDetector.h"
+#include "../ThirdParty/Ugui/ugui.h"
 
 // Hardware display driver for FreeARDU
 // Handles low-level display initialization and buffer flushing
@@ -29,6 +29,11 @@ private:
     void detectSize();
     int flushSPI();
     int flushParallel();
+    void initIli9341();
+    void writeCommand(uint8_t command);
+    void writeData(uint8_t data);
+    void writeSpiByte(uint8_t value);
+    static void delay_cycles(uint32_t cycles);
 
     ScreenDetectionResult screenInfo;
     bool initialized;

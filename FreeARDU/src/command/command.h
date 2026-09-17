@@ -29,6 +29,35 @@ int command_find(const char* name);
 const Command* command_get_by_index(int index);
 int command_count();
 
+void cmd_help(const char* args);
+void cmd_version(const char* args);
+void cmd_uptime(const char* args);
+void cmd_cpuinfo(const char* args);
+void cmd_memstat(const char* args);
+void cmd_date(const char* args);
+void cmd_ls(const char* args);
+void cmd_echo(const char* args);
+void cmd_clear(const char* args);
+void cmd_crt_callback(const char* args);
+void cmd_cd_callback(const char* args);
+void cmd_rd_callback(const char* args);
+void cmd_dump_memory(const char* args);
+void cmd_memtest(const char* args);
+void cmd_screen_info(const char* args);
+void cmd_stress_test(const char* args);
+void cmd_restart(const char* args);
+void cmd_halt(const char* args);
+void cmd_panic(const char* args);
+void cmd_cause_fault(const char* args);
+void cmd_and(const char* args);
+void cmd_kill_proc(const char* args);
+void cmd_list_processes(const char* args);
+void cmd_system_start_manager(const char* args);
+void cmd_bios_load(const char* args);
+void cmd_bios_set_param(const char* args);
+void cmd_bios_get(const char* args);
+void cmd_bios_config(const char* args);
+
 #ifdef __cplusplus
 }
 #endif

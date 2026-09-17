@@ -1,5 +1,5 @@
-#include "process.h"
-#include "../uart_putc/UART_PUTCHAR.h"
+#include "Process.h"
+#include "../Uart/UartPutchar.h"
 #include <string.h>
 
 // Process table

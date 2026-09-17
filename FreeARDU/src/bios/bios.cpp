@@ -1,5 +1,5 @@
-#include "bios.h"
-#include "../uart_putc/UART_PUTCHAR.h"
+#include "Bios.h"
+#include "../Uart/UartPutchar.h"
 #include <string.h>
 #include <stdlib.h>
 

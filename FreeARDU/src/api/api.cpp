@@ -1,5 +1,5 @@
-#include "api.h"
-#include "../uart_putc/UART_PUTCHAR.h"
+#include "Api.h"
+#include "../Uart/UartPutchar.h"
 
 // Hardware specific addresses for i.MX RT1060 (Example)
 // GPIO1 base: 0x401B8000

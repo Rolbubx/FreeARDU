@@ -50,7 +50,7 @@ sysbus LoadELF "$FirmwarePath"
 cpu PC `sysbus GetSymbolAddress "reset_handler"`
 showAnalyzer sysbus.lpuart1
 start
-print "Starting emulation..."
+log "Starting emulation..."
 "@ | Out-File -FilePath $TempResc -Encoding ASCII
 
 # Launch Renode

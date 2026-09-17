@@ -8,6 +8,11 @@ echo.
 REM Get script directory
 set "SCRIPT_DIR=%~dp0"
 
+REM Chemin vers l'executable Renode.
+REM Passe en 2e argument par FreeARDU.bat ; sinon on retombe sur "renode" (PATH).
+set "RENODE_EXE=%~2"
+if "%RENODE_EXE%"=="" set "RENODE_EXE=renode"
+
 REM Default firmware path
 set "FIRMWARE_PATH=%SCRIPT_DIR%.pio\build\mimxrt1060_evk\firmware.elf"
 
@@ -24,7 +29,17 @@ if not exist "%FIRMWARE_PATH%" (
     exit /b 1
 )
 
+REM Check Renode executable exists (only when a full path was given)
+if not "%RENODE_EXE%"=="renode" (
+    if not exist "%RENODE_EXE%" (
+        echo ERROR: Renode executable not found at: %RENODE_EXE%
+        pause
+        exit /b 1
+    )
+)
+
 echo Using firmware: %FIRMWARE_PATH%
+echo Using Renode  : %RENODE_EXE%
 echo Starting Renode...
 echo.
 
@@ -39,11 +54,11 @@ echo sysbus LoadELF "%FIRMWARE_PATH%"
 echo cpu PC `sysbus GetSymbolAddress "reset_handler"`
 echo showAnalyzer sysbus.lpuart1
 echo start
-echo print "Starting emulation..."
+echo log "Starting emulation..."
 ) > "%RESC_FILE%"
 
 REM Run Renode
-renode "%RESC_FILE%"
+"%RENODE_EXE%" "%RESC_FILE%"
 
 REM Cleanup
 del "%RESC_FILE%" 2>nul

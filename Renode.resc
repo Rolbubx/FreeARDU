@@ -7,4 +7,4 @@ sysbus LoadELF "Path/To/The/Firmware"
 cpu PC `sysbus GetSymbolAddress "reset_handler"`
 showAnalyzer sysbus.lpuart1
 start
-print "Starting emulation..."
+log "Starting emulation..."

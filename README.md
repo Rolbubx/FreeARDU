@@ -2,7 +2,7 @@
 
 A bare-metal learning project for Cortex-M7 (NXP i.MX RT1060), with a custom startup sequence, linker script, and a small framebuffer layer to drive a display.
 
-This is **not** a generic framework or a finished product: it's a personal project to understand how a microcontroller works "from scratch," with no OS or Arduino core underneath. Feedback and contributions are welcome, but expect the code to still be experimental.
+This is **not** a generic framework or a finished product: it's a personal project to understand how a microcontroller works "from scratch," with no OS or Arduino core underneath. Feedback and contributions welcome.
 
 > **What this project is :** a personal, in-progress learning exercise. It is **not** a real framework, not something meant to be adopted by other teams, and not something you should compare to mature platform tooling. If that's what you're looking for, see the "What this project is NOT (yet)" section below for direct pointers to the real thing.
 
@@ -154,7 +154,7 @@ extern "C" int main() {
 
 ## Why this project exists
 
-This is mainly an exercise to understand, step by step, what happens between powering up a Cortex-M7 board and drawing the first pixel — without relying on an existing framework. If you're looking for something production-ready, look at CMSIS, ST's HAL, or a mature graphics framework like LVGL instead.
+This is mainly an exercise to understand, step by step, what happens between powering up a Cortex-M7 board and drawing the first pixel — without relying on an existing framework. If you're looking for a polished SDK or production-ready HAL, this isn't it.
 
 ## License
 
